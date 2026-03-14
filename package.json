@@ -2,21 +2,18 @@
   "name": "skincare-consultant",
   "version": "0.1.0",
   "private": true,
-  "type": "module",
   "description": "Routine-centric skincare consultant web app",
+  "workspaces": ["skincareconsultant"],
   "scripts": {
-    "lint": "eslint . --max-warnings 0",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
+    "dev": "npm run dev -w skincareconsultant",
+    "build": "npm run build -w skincareconsultant",
+    "start": "npm run start -w skincareconsultant",
+    "lint": "npm run lint -w skincareconsultant",
+    "typecheck": "npm run typecheck -w skincareconsultant",
+    "test": "npm run test -w skincareconsultant",
     "prepare": "husky"
   },
   "devDependencies": {
-    "@eslint/js": "^9.15.0",
-    "eslint": "^9.15.0",
-    "globals": "^15.12.0",
-    "husky": "^9.1.7",
-    "typescript": "^5.6.3",
-    "typescript-eslint": "^8.15.0",
-    "vitest": "^2.1.6"
+    "husky": "^9.1.7"
   }
 }
