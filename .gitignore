@@ -1,0 +1,5 @@
+# Cursor IDE project-specific config (agents, rules, skills)
+.cursor/
+
+# Backup of old nested repo (do not commit)
+**/.git.bak/
