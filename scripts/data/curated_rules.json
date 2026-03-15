@@ -1,0 +1,20 @@
+{
+  "conflicts_with": [
+    { "from": "retinol", "to": "aha" },
+    { "from": "retinol", "to": "bha" },
+    { "from": "retinol", "to": "vitamin-c" },
+    { "from": "aha", "to": "bha" },
+    { "from": "vitamin-c", "to": "aha" }
+  ],
+  "belongs_to": [
+    { "ingredient": "glycolic-acid", "family": "aha" },
+    { "ingredient": "lactic-acid", "family": "aha" },
+    { "ingredient": "salicylic-acid", "family": "bha" },
+    { "ingredient": "retinol", "family": "retinoids" },
+    { "ingredient": "hyaluronic-acid", "family": "humectants" },
+    { "ingredient": "panthenol", "family": "humectants" },
+    { "ingredient": "vitamin-c", "family": "antioxidants" },
+    { "ingredient": "niacinamide", "family": "antioxidants" },
+    { "ingredient": "ceramides", "family": "barrier-repair" }
+  ]
+}

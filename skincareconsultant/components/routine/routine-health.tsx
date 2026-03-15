@@ -98,8 +98,11 @@ export function RoutineHealthCard({ health, className }: RoutineHealthCardProps)
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
             Insights & Warnings
           </h3>
-          {health.warnings.map((warning, index) => (
-            <WarningItem key={index} warning={warning} />
+          {health.warnings.map((warning) => (
+            <WarningItem
+              key={`${warning.type}-${warning.message}-${warning.details ?? ""}`}
+              warning={warning}
+            />
           ))}
         </div>
       )}

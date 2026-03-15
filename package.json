@@ -11,9 +11,17 @@
     "lint": "npm run lint -w skincareconsultant",
     "typecheck": "npm run typecheck -w skincareconsultant",
     "test": "npm run test -w skincareconsultant",
-    "prepare": "husky"
+    "prepare": "husky",
+    "combine-datasets": "tsx scripts/combine-datasets/run.ts",
+    "combine-datasets:no-download": "tsx scripts/combine-datasets/run.ts --no-download",
+    "combine-datasets:dry-run": "tsx scripts/combine-datasets/run.ts --dry-run",
+    "test:scripts": "vitest run --config scripts/combine-datasets/vitest.config.ts"
   },
   "devDependencies": {
-    "husky": "^9.1.7"
+    "csv-parse": "^5.5.6",
+    "husky": "^9.1.7",
+    "tsx": "^4.19.2",
+    "vitest": "^3.0.0",
+    "yauzl": "^2.10.0"
   }
 }

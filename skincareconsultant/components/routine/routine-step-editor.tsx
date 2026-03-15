@@ -117,7 +117,7 @@ export function RoutineStepEditor({
         value={step.productId || "none"}
         onValueChange={handleProductChange}
       >
-        <SelectTrigger className="w-48">
+        <SelectTrigger className="w-48" aria-label="Select product for this step">
           <SelectValue placeholder="Select product" />
         </SelectTrigger>
         <SelectContent>
@@ -154,6 +154,7 @@ export function AddStepButton({ onAdd, className }: AddStepButtonProps) {
   return (
     <button
       type="button"
+      aria-label="Add step to routine"
       className={cn(
         "flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border p-3 text-sm font-medium text-muted-foreground transition-colors hover:border-primary hover:text-primary",
         className

@@ -1,0 +1,10 @@
+{
+  "rawDataDir": "scripts/data/raw",
+  "curatedRulesPath": "scripts/data/curated_rules.json",
+  "outputDir": "scripts/out",
+  "kaggle": {
+    "ingredients": "amaboh/skin-care-product-ingredients-inci-list",
+    "cosing": "amaboh/cosing-ingredients-inci-list",
+    "products": ["autumndyer/skincare-products-and-ingredients"]
+  }
+}

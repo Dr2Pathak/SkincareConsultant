@@ -1,0 +1,7 @@
+# Raw Kaggle downloads - do not commit
+data/raw/
+# Local Kaggle credentials - use ~/.kaggle/kaggle.json instead
+kaggle.json
+*.json.bak
+# Outputs - optional to commit for seed data
+out/

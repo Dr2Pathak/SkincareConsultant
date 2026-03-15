@@ -1,15 +1,11 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChatMessageBubble, ChatInput } from "@/components/chat/chat-message"
 import { Disclaimer } from "@/components/disclaimer"
 import { mockChatMessages } from "@/lib/mock-data"
+import { generateId } from "@/lib/utils"
 import type { ChatMessage } from "@/lib/types"
-
-function generateId() {
-  return Math.random().toString(36).substring(2, 9)
-}
 
 // Mock responses for demo
 const mockResponses: Record<string, string> = {
@@ -89,8 +85,8 @@ export default function ChatPage() {
           </p>
         </div>
 
-        {/* Messages Area */}
-        <ScrollArea className="flex-1 pr-4" ref={scrollRef}>
+        {/* Messages Area - ref on scroll container so scroll-to-bottom works */}
+        <div ref={scrollRef} className="flex-1 overflow-auto pr-4 min-h-0">
           <div className="space-y-4 pb-4">
             {messages.map((message) => (
               <ChatMessageBubble key={message.id} message={message} />
@@ -106,7 +102,7 @@ export default function ChatPage() {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* Input Area */}
         <div className="border-t border-border pt-4 mt-4 space-y-3">

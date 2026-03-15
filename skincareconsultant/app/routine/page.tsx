@@ -7,11 +7,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { RoutineStepEditor, AddStepButton } from "@/components/routine/routine-step-editor"
 import { RoutineHealthCard } from "@/components/routine/routine-health"
 import { mockRoutine, mockProducts, mockRoutineHealth } from "@/lib/mock-data"
+import { generateId } from "@/lib/utils"
 import type { RoutineStep } from "@/lib/types"
-
-function generateId() {
-  return Math.random().toString(36).substring(2, 9)
-}
 
 export default function RoutinePage() {
   const [amSteps, setAmSteps] = useState<RoutineStep[]>(mockRoutine.am)
