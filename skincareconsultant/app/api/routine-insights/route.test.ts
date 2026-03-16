@@ -1,12 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { GET } from "./route"
+import { getUserFromRequest } from "@/lib/supabase/auth-server"
+import { getRoutineKnowledgeInsights } from "@/lib/routine-knowledge"
 
 vi.mock("@/lib/supabase/auth-server", () => ({ getUserFromRequest: vi.fn() }))
 vi.mock("@/lib/supabase/server", () => ({ getSupabaseServer: vi.fn() }))
 vi.mock("@/lib/routine-knowledge", () => ({ getRoutineKnowledgeInsights: vi.fn() }))
-
-const { getUserFromRequest } = await import("@/lib/supabase/auth-server")
-const { getRoutineKnowledgeInsights } = await import("@/lib/routine-knowledge")
 
 describe("GET /api/routine-insights", () => {
   beforeEach(() => {

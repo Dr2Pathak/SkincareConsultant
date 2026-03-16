@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import { Search, ArrowRight, RotateCcw } from "lucide-react"
+import { Search, RotateCcw } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { ProductCard } from "@/components/product-card"

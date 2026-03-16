@@ -1,11 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { GET, POST, DELETE } from "./route"
+import { getUserFromRequest } from "@/lib/supabase/auth-server"
+import { getSupabaseServer } from "@/lib/supabase/server"
 
 vi.mock("@/lib/supabase/auth-server", () => ({ getUserFromRequest: vi.fn() }))
 vi.mock("@/lib/supabase/server", () => ({ getSupabaseServer: vi.fn() }))
-
-const { getUserFromRequest } = await import("@/lib/supabase/auth-server")
-const { getSupabaseServer } = await import("@/lib/supabase/server")
 
 describe("GET /api/routine", () => {
   beforeEach(() => {
@@ -24,7 +23,7 @@ describe("GET /api/routine", () => {
   it("returns current routine when is_current row exists", async () => {
     const user = { id: "user-1" }
     vi.mocked(getUserFromRequest).mockResolvedValue(user as never)
-    const chain: ReturnType<typeof mockSupabase>["chain"] = {
+    const chain = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),
       order: vi.fn().mockReturnThis(),
@@ -78,7 +77,6 @@ describe("POST /api/routine", () => {
   })
 
   it("updates existing routine when id is provided", async () => {
-    const updateMock = vi.fn().mockResolvedValue({ error: null })
     const chain = {
       select: vi.fn().mockReturnThis(),
       eq: vi.fn().mockReturnThis(),

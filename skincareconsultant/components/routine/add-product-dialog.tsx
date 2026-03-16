@@ -125,7 +125,6 @@ export function AddProductDialog({
   }
 
   const showSearch = !initialProductId
-  const canAdd = !!product
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && handleClose()}>

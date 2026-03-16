@@ -10,7 +10,7 @@ vi.mock('next-themes', () => ({
 describe('ThemeToggle', () => {
   it('renders and toggles between light and dark', () => {
     const mockSetTheme = vi.fn()
-    ;(useTheme as unknown as vi.Mock).mockReturnValue({
+    ;(useTheme as unknown as { mockReturnValue: (value: unknown) => void }).mockReturnValue({
       theme: 'light',
       setTheme: mockSetTheme,
     })

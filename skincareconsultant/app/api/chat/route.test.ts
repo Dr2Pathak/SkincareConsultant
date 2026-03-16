@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { POST } from "./route"
+import { getChatEnvError } from "@/lib/env"
+import { embedTexts, generateChatReply } from "@/lib/gemini"
+import { getPineconeClient, getPineconeIndexHost } from "@/lib/pinecone"
 
 vi.mock("@/lib/env", () => ({ getChatEnvError: vi.fn() }))
 vi.mock("@/lib/gemini", () => ({
@@ -10,10 +13,6 @@ vi.mock("@/lib/pinecone", () => ({
   getPineconeClient: vi.fn(),
   getPineconeIndexHost: vi.fn(),
 }))
-
-const { getChatEnvError } = await import("@/lib/env")
-const { embedTexts, generateChatReply } = await import("@/lib/gemini")
-const { getPineconeClient, getPineconeIndexHost } = await import("@/lib/pinecone")
 
 describe("POST /api/chat", () => {
   beforeEach(() => {
