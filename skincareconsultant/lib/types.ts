@@ -36,8 +36,20 @@ export interface RoutineStep {
 }
 
 export interface Routine {
+  id?: string
+  name?: string
   am: RoutineStep[]
   pm: RoutineStep[]
+}
+
+/** Saved routine summary for listing (e.g. My Routines). */
+export interface SavedRoutineSummary {
+  id: string
+  name: string
+  am: RoutineStep[]
+  pm: RoutineStep[]
+  is_current: boolean
+  updated_at?: string
 }
 
 // Product types
@@ -124,4 +136,12 @@ export interface RoutineHealth {
   exfoliationLoad: number
   retinoidStrength: number
   conflictCount: number
+}
+
+/** Knowledge-graph insights for ingredients in the user's routine (conflicts & helps). */
+export interface RoutineInsights {
+  conflicts: Array<{ aLabel: string; bLabel: string }>
+  helps: Array<{ ingredient: string; targets: string[] }>
+  /** True when the routine used for the request had at least one product (so empty insights = no graph data for those products). */
+  hasRoutineProducts?: boolean
 }

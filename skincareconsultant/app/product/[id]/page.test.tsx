@@ -1,5 +1,29 @@
-import { describe, it, expect } from "vitest"
+import { describe, it, expect, vi } from "vitest"
 import { render, screen } from "@testing-library/react"
+import type { Product } from "@/lib/types"
+
+vi.mock("@/lib/data-server", () => ({
+  getProductById: vi.fn((id: string) =>
+    id === "1"
+      ? Promise.resolve({
+          id: "1",
+          name: "Test Product",
+          brand: "Test Brand",
+          inciList: ["Water", "Glycerin"],
+        } as Product)
+      : Promise.resolve(null)
+  ),
+  getCompatibilityServer: vi.fn(() =>
+    Promise.resolve({
+      verdict: "ready" as const,
+      score: 80,
+      scoreLabel: "Good fit",
+      summary: "Looks compatible.",
+      reasons: [],
+    })
+  ),
+}))
+
 import ProductPage from "./page"
 
 describe("ProductPage", () => {

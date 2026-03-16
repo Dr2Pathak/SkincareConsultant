@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { Search, ArrowRight, RotateCcw } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -9,45 +9,73 @@ import { VerdictCard } from "@/components/compatibility/verdict-badge"
 import { ExpandableExplanation } from "@/components/compatibility/expandable-explanation"
 import { IngredientHighlightList } from "@/components/compatibility/ingredient-highlight-list"
 import { Disclaimer } from "@/components/disclaimer"
-import { searchProducts, getCompatibilityResult } from "@/lib/mock-data"
+import { searchProducts, getCompatibility } from "@/lib/data"
 import type { Product, CompatibilityResult } from "@/lib/types"
+
+const DEBOUNCE_MS = 280
+const MIN_QUERY_LENGTH = 2
 
 export default function ProductCheckPage() {
   const [query, setQuery] = useState("")
-  const [searchResults, setSearchResults] = useState<Product[]>([])
+  const [dropdownResults, setDropdownResults] = useState<Product[]>([])
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null)
   const [compatibilityResult, setCompatibilityResult] = useState<CompatibilityResult | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  const handleSearch = () => {
-    if (!query.trim()) return
-    setIsSearching(true)
-    // Simulate search delay
-    setTimeout(() => {
-      setSearchResults(searchProducts(query))
-      setIsSearching(false)
-    }, 300)
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleSearch()
+  const runSearch = useCallback(async (q: string) => {
+    if (q.trim().length < MIN_QUERY_LENGTH) {
+      setDropdownResults([])
+      return
     }
-  }
+    setIsSearching(true)
+    try {
+      const results = await searchProducts(q.trim())
+      setDropdownResults(results)
+      setDropdownOpen(true)
+    } finally {
+      setIsSearching(false)
+    }
+  }, [])
 
-  const handleCheckProduct = (product: Product) => {
+  useEffect(() => {
+    const t = setTimeout(() => {
+      runSearch(query)
+    }, DEBOUNCE_MS)
+    return () => clearTimeout(t)
+  }, [query, runSearch])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
+
+  const handleCheckProduct = async (product: Product) => {
     setSelectedProduct(product)
-    const result = getCompatibilityResult(product.id)
-    setCompatibilityResult(result)
-    setSearchResults([])
+    setCompatibilityResult(null)
+    setDropdownOpen(false)
+    setDropdownResults([])
     setQuery("")
+    try {
+      const result = await getCompatibility(product.id)
+      setCompatibilityResult(result)
+    } catch {
+      setCompatibilityResult(null)
+    }
   }
 
   const handleReset = () => {
     setSelectedProduct(null)
     setCompatibilityResult(null)
     setQuery("")
-    setSearchResults([])
+    setDropdownResults([])
+    setDropdownOpen(false)
   }
 
   return (
@@ -60,67 +88,72 @@ export default function ProductCheckPage() {
           </p>
         </div>
 
-        {/* Show search when no result is displayed */}
         {!compatibilityResult && (
           <>
-            <div className="mb-8">
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-                  <Input
-                    type="search"
-                    placeholder="Search by product name, brand, or ingredient..."
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    className="pl-9"
-                    aria-label="Search products"
-                  />
-                </div>
-                <Button onClick={handleSearch} disabled={isSearching || !query.trim()}>
-                  {isSearching ? "Searching..." : "Search"}
-                </Button>
+            <div className="mb-6" ref={containerRef}>
+              <div className="relative max-w-xl">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
+                <Input
+                  type="search"
+                  placeholder="Type product name, brand, or ingredient (e.g. niaci, CeraVe)..."
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onFocus={() => query.trim().length >= MIN_QUERY_LENGTH && dropdownResults.length > 0 && setDropdownOpen(true)}
+                  className="pl-9"
+                  aria-label="Search products"
+                  aria-expanded={dropdownOpen}
+                  aria-autocomplete="list"
+                  aria-controls="product-dropdown"
+                  id="product-search"
+                />
+                {isSearching && (
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Searching...</span>
+                )}
+                {dropdownOpen && (dropdownResults.length > 0 || (query.trim().length >= MIN_QUERY_LENGTH && !isSearching)) && (
+                  <ul
+                    id="product-dropdown"
+                    role="listbox"
+                    className="absolute z-50 mt-1 w-full max-h-72 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md"
+                  >
+                    {dropdownResults.length === 0 ? (
+                      <li className="px-3 py-2 text-sm text-muted-foreground">No products found</li>
+                    ) : (
+                      dropdownResults.slice(0, 12).map((product) => (
+                        <li
+                          key={product.id}
+                          role="option"
+                          tabIndex={0}
+                          className="cursor-pointer px-3 py-2 text-sm hover:bg-accent focus:bg-accent focus:outline-none"
+                          onMouseDown={(e) => {
+                            e.preventDefault()
+                            handleCheckProduct(product)
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault()
+                              handleCheckProduct(product)
+                            }
+                          }}
+                        >
+                          <span className="font-medium text-foreground">{product.name}</span>
+                          <span className="text-muted-foreground"> — {product.brand}</span>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                )}
               </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Start typing to see suggestions; select a product to check compatibility.
+              </p>
             </div>
 
-            {/* Search Results */}
-            {searchResults.length > 0 && (
-              <section aria-label="Search results">
-                <h2 className="text-lg font-semibold text-foreground mb-4">
-                  Search Results ({searchResults.length})
-                </h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {searchResults.map((product) => (
-                    <div key={product.id} className="relative">
-                      <ProductCard product={product} variant="full" />
-                      <Button
-                        className="mt-3 w-full"
-                        onClick={() => handleCheckProduct(product)}
-                      >
-                        Check Compatibility
-                        <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {query && searchResults.length === 0 && !isSearching && (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">No products found matching "{query}"</p>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Try searching for "CeraVe", "The Ordinary", or "Niacinamide"
-                </p>
-              </div>
-            )}
-
-            {!query && searchResults.length === 0 && (
+            {!query && !selectedProduct && (
               <div className="text-center py-12 rounded-xl border border-dashed border-border">
                 <Search className="mx-auto h-12 w-12 text-muted-foreground/50" aria-hidden="true" />
                 <h3 className="mt-4 text-lg font-medium text-foreground">Search for a Product</h3>
                 <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-                  Enter a product name, brand, or ingredient to check its compatibility with your routine.
+                  Type a product name, brand, or ingredient (e.g. niacinamide, CeraVe) to see matching products, then select one to check compatibility.
                 </p>
               </div>
             )}
@@ -177,7 +210,7 @@ export default function ProductCheckPage() {
                 <a href={`/product/${selectedProduct.id}`}>View Full Product Details</a>
               </Button>
               <Button className="flex-1" asChild>
-                <a href="/routine">Add to Routine</a>
+                <a href={`/routine?addProduct=${encodeURIComponent(selectedProduct.id)}`}>Add to Routine</a>
               </Button>
             </div>
           </div>

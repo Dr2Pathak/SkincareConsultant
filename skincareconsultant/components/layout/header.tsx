@@ -3,9 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
-import { Menu, X, Droplets } from "lucide-react"
+import { Menu, X, Droplets, LogIn, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/components/auth/auth-provider"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 const navItems = [
   { href: "/routine", label: "Routine" },
@@ -17,6 +19,7 @@ const navItems = [
 export function Header() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const { user, loading, signOut } = useAuth()
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -47,6 +50,24 @@ export function Header() {
         </nav>
 
         <div className="hidden md:flex md:items-center md:gap-2">
+          {!loading && (
+            <>
+              {user ? (
+                <Button variant="ghost" size="sm" onClick={() => signOut()}>
+                  <LogOut className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                  Sign out
+                </Button>
+              ) : (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/login">
+                    <LogIn className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    Sign in
+                  </Link>
+                </Button>
+              )}
+            </>
+          )}
+          <ThemeToggle size="icon" />
           <Button variant="ghost" size="sm" asChild>
             <Link href="/onboarding">Profile</Link>
           </Button>
@@ -97,6 +118,20 @@ export function Header() {
               </Link>
             ))}
             <div className="flex flex-col gap-2 pt-2">
+              <ThemeToggle size="sm" className="self-start" />
+              {user ? (
+                <Button variant="outline" size="sm" className="w-full" onClick={() => signOut()}>
+                  <LogOut className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                  Sign out
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" asChild className="w-full">
+                  <Link href="/login" onClick={() => setMobileMenuOpen(false)}>
+                    <LogIn className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                    Sign in
+                  </Link>
+                </Button>
+              )}
               <Button variant="outline" size="sm" asChild className="w-full">
                 <Link href="/onboarding">Profile</Link>
               </Button>

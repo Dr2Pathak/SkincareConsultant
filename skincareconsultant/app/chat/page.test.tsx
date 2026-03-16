@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import ChatPage from "./page";
+
+vi.mock("@/components/auth/auth-provider", () => ({
+  useAuth: () => ({ user: null, loading: false, signOut: () => {} }),
+}));
 
 describe("ChatPage", () => {
   it("renders chat heading and consultant title", () => {

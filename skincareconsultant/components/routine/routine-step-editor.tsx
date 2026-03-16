@@ -1,7 +1,7 @@
 "use client"
 
 import { GripVertical, Trash2, Plus, Edit2, Check, X } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -14,11 +14,15 @@ import {
 } from "@/components/ui/select"
 import type { RoutineStep, Product } from "@/lib/types"
 
+const SEARCH_DEBOUNCE_MS = 250
+const MIN_SEARCH_LEN = 2
+
 interface RoutineStepEditorProps {
   step: RoutineStep
   products: Product[]
   onUpdate: (step: RoutineStep) => void
   onDelete: (stepId: string) => void
+  searchProducts?: (query: string) => Promise<Product[]>
   className?: string
 }
 
@@ -27,10 +31,63 @@ export function RoutineStepEditor({
   products,
   onUpdate,
   onDelete,
+  searchProducts: searchProductsFn,
   className,
 }: RoutineStepEditorProps) {
   const [isEditingLabel, setIsEditingLabel] = useState(false)
   const [editedLabel, setEditedLabel] = useState(step.label)
+  const [productSearch, setProductSearch] = useState("")
+  const [searchResults, setSearchResults] = useState<Product[]>([])
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searching, setSearching] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
+
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
+
+  const runSearch = useCallback(
+    async (q: string) => {
+      if (!searchProductsFn || q.trim().length < MIN_SEARCH_LEN) {
+        if (mountedRef.current) setSearchResults([])
+        return
+      }
+      if (mountedRef.current) setSearching(true)
+      try {
+        const results = await searchProductsFn(q.trim())
+        if (!mountedRef.current) return
+        setSearchResults(results)
+        setSearchOpen(true)
+      } finally {
+        if (mountedRef.current) setSearching(false)
+      }
+    },
+    [searchProductsFn]
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(() => {
+      if (cancelled) return
+      runSearch(productSearch)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [productSearch, runSearch])
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setSearchOpen(false)
+    }
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => document.removeEventListener("mousedown", handleClickOutside)
+  }, [])
 
   const handleLabelSave = () => {
     if (editedLabel.trim()) {
@@ -52,6 +109,8 @@ export function RoutineStepEditor({
       product: productId === "none" ? undefined : product,
     })
   }
+
+  const useProductSearch = products.length === 0 && !!searchProductsFn
 
   return (
     <article
@@ -113,24 +172,75 @@ export function RoutineStepEditor({
         )}
       </div>
 
-      <Select
-        value={step.productId || "none"}
-        onValueChange={handleProductChange}
-      >
-        <SelectTrigger className="w-48" aria-label="Select product for this step">
-          <SelectValue placeholder="Select product" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="none">
-            <span className="text-muted-foreground">No product</span>
-          </SelectItem>
-          {products.map((product) => (
-            <SelectItem key={product.id} value={product.id}>
-              {product.name}
+      {useProductSearch ? (
+        <div className="relative w-56" ref={searchRef}>
+          <Input
+            placeholder="Search product..."
+            value={productSearch}
+            onChange={(e) => setProductSearch(e.target.value)}
+            onFocus={() => productSearch.trim().length >= MIN_SEARCH_LEN && setSearchOpen(true)}
+            className="h-8"
+            aria-label="Search product for this step"
+          />
+          {searching && (
+            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground">Searching...</span>
+          )}
+          {searchOpen && (searchResults.length > 0 || (productSearch.trim().length >= MIN_SEARCH_LEN && !searching)) && (
+            <ul
+              className="absolute z-50 mt-1 w-full max-h-48 overflow-auto rounded-md border border-border bg-popover py-1 shadow-md"
+              role="listbox"
+            >
+              <li
+                role="option"
+                className="cursor-pointer px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  onUpdate({ ...step, productId: undefined, product: undefined })
+                  setProductSearch("")
+                  setSearchOpen(false)
+                }}
+              >
+                No product
+              </li>
+              {searchResults.slice(0, 8).map((product) => (
+                <li
+                  key={product.id}
+                  role="option"
+                  className="cursor-pointer px-3 py-1.5 text-sm hover:bg-accent"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    onUpdate({ ...step, productId: product.id, product })
+                    setProductSearch("")
+                    setSearchResults([])
+                    setSearchOpen(false)
+                  }}
+                >
+                  {product.name} — {product.brand}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
+        <Select
+          value={step.productId || "none"}
+          onValueChange={handleProductChange}
+        >
+          <SelectTrigger className="w-48" aria-label="Select product for this step">
+            <SelectValue placeholder="Select product" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">
+              <span className="text-muted-foreground">No product</span>
             </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+            {products.map((product) => (
+              <SelectItem key={product.id} value={product.id}>
+                {product.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
 
       <Button
         size="icon"

@@ -3,50 +3,42 @@
 import { useState, useRef, useEffect } from "react"
 import { ChatMessageBubble, ChatInput } from "@/components/chat/chat-message"
 import { Disclaimer } from "@/components/disclaimer"
-import { mockChatMessages } from "@/lib/mock-data"
+import { useAuth } from "@/components/auth/auth-provider"
+import { loadChatHistory, saveChatHistory, WELCOME_MESSAGE } from "@/lib/chat-storage"
+import { sendChatMessage, getRoutine } from "@/lib/data"
+import { USE_MOCK } from "@/lib/data"
 import { generateId } from "@/lib/utils"
 import type { ChatMessage } from "@/lib/types"
 
-// Mock responses for demo
-const mockResponses: Record<string, string> = {
-  retinol:
-    "Retinol is a powerful ingredient for anti-aging and acne. Based on your routine, you're already using retinol in the PM. Remember not to combine it with AHAs or BHAs in the same routine to avoid irritation.",
-  niacinamide:
-    "Niacinamide is great for your concerns! It helps with acne, pigmentation, and barrier support. It's already in your routine and pairs well with most ingredients. You can safely use it in both AM and PM.",
-  sunscreen:
-    "Sunscreen is essential, especially since you're using actives like retinol and AHA. Based on your routine, you have SPF 50 in the morning. Make sure to reapply every 2 hours when outdoors.",
-  default:
-    "I can help you understand your routine, check ingredients, and answer skincare questions. Try asking about specific ingredients like retinol, niacinamide, or vitamin C!",
-}
-
-function getMockResponse(message: string): { content: string; basedOnRoutine: boolean } {
-  const lower = message.toLowerCase()
-  if (lower.includes("retinol")) {
-    return { content: mockResponses.retinol, basedOnRoutine: true }
-  }
-  if (lower.includes("niacinamide")) {
-    return { content: mockResponses.niacinamide, basedOnRoutine: true }
-  }
-  if (lower.includes("sunscreen") || lower.includes("spf")) {
-    return { content: mockResponses.sunscreen, basedOnRoutine: true }
-  }
-  return { content: mockResponses.default, basedOnRoutine: false }
-}
-
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>(mockChatMessages)
+  const { user } = useAuth()
+  const [messages, setMessages] = useState<ChatMessage[]>(() => [WELCOME_MESSAGE])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [routineSnapshot, setRoutineSnapshot] = useState<{ am: Array<{ label?: string; productId?: string; product?: { name: string; brand: string } }>; pm: Array<{ label?: string; productId?: string; product?: { name: string; brand: string } }> } | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Scroll to bottom on new messages
+    const stored = loadChatHistory(user?.id)
+    setMessages(stored && stored.length > 0 ? stored : [WELCOME_MESSAGE])
+  }, [user?.id])
+
+  useEffect(() => {
+    if (USE_MOCK) return
+    getRoutine().then((r) => setRoutineSnapshot({ am: r.am ?? [], pm: r.pm ?? [] }))
+  }, [])
+
+  useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight
     }
   }, [messages])
 
-  const handleSend = () => {
+  useEffect(() => {
+    saveChatHistory(user?.id, messages)
+  }, [messages, user?.id])
+
+  const handleSend = async () => {
     if (!inputValue.trim() || isLoading) return
 
     const userMessage: ChatMessage = {
@@ -60,19 +52,27 @@ export default function ChatPage() {
     setInputValue("")
     setIsLoading(true)
 
-    // Simulate AI response delay
-    setTimeout(() => {
-      const response = getMockResponse(userMessage.content)
+    try {
+      const { reply } = await sendChatMessage(userMessage.content, routineSnapshot ?? undefined)
       const assistantMessage: ChatMessage = {
         id: generateId(),
         role: "assistant",
-        content: response.content,
-        basedOnRoutine: response.basedOnRoutine,
+        content: reply,
         timestamp: new Date(),
       }
       setMessages((prev) => [...prev, assistantMessage])
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Something went wrong. Please try again."
+      const assistantMessage: ChatMessage = {
+        id: generateId(),
+        role: "assistant",
+        content: message,
+        timestamp: new Date(),
+      }
+      setMessages((prev) => [...prev, assistantMessage])
+    } finally {
       setIsLoading(false)
-    }, 1000)
+    }
   }
 
   return (

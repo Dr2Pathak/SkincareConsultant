@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { getProductById } from "@/lib/mock-data"
-import { getCompatibilityResult } from "@/lib/mock-data"
+import { getProductById as getProductServer, getCompatibilityServer } from "@/lib/data-server"
+import { getProductById as getProductMock, getCompatibilityResult } from "@/lib/mock-data"
 import { Disclaimer } from "@/components/disclaimer"
 import { VerdictCard } from "@/components/compatibility/verdict-badge"
 import { ExpandableExplanation } from "@/components/compatibility/expandable-explanation"
@@ -16,10 +16,11 @@ interface ProductPageProps {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { id } = await params
-  const product = getProductById(id)
-  if (!product) notFound()
+  const useMock = process.env.NEXT_PUBLIC_USE_MOCK === "true"
+  const product = useMock ? getProductMock(id) ?? null : await getProductServer(id)
+  if (product == null) notFound()
 
-  const compatibility = getCompatibilityResult(id)
+  const compatibility = useMock ? getCompatibilityResult(id) : await getCompatibilityServer(id)
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">

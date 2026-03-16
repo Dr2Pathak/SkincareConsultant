@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "description": "Routine-centric skincare consultant web app",
-  "workspaces": ["skincareconsultant"],
+  "workspaces": [
+    "skincareconsultant"
+  ],
   "scripts": {
     "dev": "npm run dev -w skincareconsultant",
     "build": "npm run build -w skincareconsultant",
@@ -15,10 +17,14 @@
     "combine-datasets": "tsx scripts/combine-datasets/run.ts",
     "combine-datasets:no-download": "tsx scripts/combine-datasets/run.ts --no-download",
     "combine-datasets:dry-run": "tsx scripts/combine-datasets/run.ts --dry-run",
-    "test:scripts": "vitest run --config scripts/combine-datasets/vitest.config.ts"
+    "test:scripts": "vitest run --config scripts/combine-datasets/vitest.config.ts",
+    "load-products": "tsx scripts/load-products-supabase.ts",
+    "load-graph": "tsx scripts/load-graph-neo4j.ts",
+    "rag-ingest": "tsx scripts/rag-ingest.ts"
   },
   "devDependencies": {
     "csv-parse": "^5.5.6",
+    "dotenv": "^17.3.1",
     "husky": "^9.1.7",
     "tsx": "^4.19.2",
     "vitest": "^3.0.0",
