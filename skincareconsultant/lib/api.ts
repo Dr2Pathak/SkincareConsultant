@@ -165,6 +165,93 @@ export async function getRoutineInsights(): Promise<RoutineInsights> {
   return res.json() as Promise<RoutineInsights>;
 }
 
+export async function getRoutineSchedulePreview(params: {
+  routineId?: string
+  includeAm?: boolean
+  includePm?: boolean
+  includeWeekly?: boolean
+  horizonDays?: number
+  amTime?: string
+  pmTime?: string
+  weeklyDays?: string[]
+  weeklyTime?: string
+}): Promise<{ events: unknown[] }> {
+  const url = `${API_BASE}/api/routine-schedule/preview`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: authHeaders(true),
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    console.error("Routine schedule preview failed", { url, status: res.status });
+    throw new Error("We couldn't build your routine calendar preview. Please try again.");
+  }
+  return res.json() as Promise<{ events: unknown[] }>;
+}
+
+export async function downloadRoutineScheduleIcs(params: {
+  routineId?: string
+  includeAm?: boolean
+  includePm?: boolean
+  includeWeekly?: boolean
+  horizonDays?: number
+  amTime?: string
+  pmTime?: string
+  weeklyDays?: string[]
+  weeklyTime?: string
+}): Promise<Blob> {
+  const url = `${API_BASE}/api/routine-schedule/ics`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: authHeaders(true),
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) {
+    console.error("Routine schedule ICS export failed", { url, status: res.status });
+    throw new Error("We couldn't export your routine calendar. Please try again.");
+  }
+  return res.blob();
+}
+
+export async function downloadHistoryCsv(): Promise<Blob> {
+  const url = `${API_BASE}/api/export/history`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: authHeaders(),
+  });
+  if (!res.ok) {
+    console.error("History CSV export failed", { url, status: res.status });
+    throw new Error("We couldn't export your history. Please try again.");
+  }
+  return res.blob();
+}
+
+/** Per-day calendar routine assignment: date (YYYY-MM-DD) -> routine id. */
+export async function getScheduleOverrides(): Promise<Record<string, string>> {
+  const url = `${API_BASE}/api/schedule-overrides`;
+  const res = await fetch(url, { headers: authHeaders() });
+  if (!res.ok) {
+    if (res.status === 401) return {}
+    console.error("Schedule overrides fetch failed", { url, status: res.status })
+    throw new Error("We couldn't load your calendar assignments.")
+  }
+  const data = (await res.json()) as { overrides?: Record<string, string> }
+  return typeof data?.overrides === "object" && data.overrides !== null ? data.overrides : {}
+}
+
+export async function updateScheduleOverrides(overrides: Record<string, string>): Promise<void> {
+  const url = `${API_BASE}/api/schedule-overrides`;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: authHeaders(true),
+    body: JSON.stringify({ overrides }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string }
+    throw new Error(data?.error ?? "Failed to save calendar assignments.")
+  }
+}
+
 export interface ChatPayload {
   message: string;
   /** Optional: user's current routine so the assistant can answer "what's in my routine" */

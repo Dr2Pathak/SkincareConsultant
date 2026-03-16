@@ -13,9 +13,31 @@ import { AddProductDialog, type AddToRoutinePart } from "@/components/routine/ad
 import { ClientOnlyTabs } from "@/components/client-only-tabs"
 import { useAuth } from "@/components/auth/auth-provider"
 import { mockRoutine, mockRoutineHealth } from "@/lib/mock-data"
-import { getRoutine, getRoutines, getRoutineHealth, getRoutineInsights, getMockProductsForPicker, searchProducts, saveRoutine, setCurrentRoutine, deleteRoutine, getProduct, USE_MOCK } from "@/lib/data"
+import {
+  getRoutine,
+  getRoutines,
+  getRoutineHealth,
+  getRoutineInsights,
+  getMockProductsForPicker,
+  searchProducts,
+  saveRoutine,
+  setCurrentRoutine,
+  deleteRoutine,
+  getProduct,
+  getRoutineSchedulePreview,
+  downloadRoutineScheduleIcs,
+  downloadHistoryCsv,
+  USE_MOCK,
+} from "@/lib/data"
 import { generateId } from "@/lib/utils"
-import type { RoutineStep, RoutineHealth, RoutineInsights, Product, SavedRoutineSummary } from "@/lib/types"
+import type {
+  RoutineStep,
+  RoutineHealth,
+  RoutineInsights,
+  Product,
+  SavedRoutineSummary,
+} from "@/lib/types"
+import type { RoutineScheduleEvent } from "@/lib/routine-schedule"
 
 const ROUTINE_NAME_MAX_LENGTH = 64
 const DEFAULT_ROUTINE_NAME = "My routine"
@@ -40,6 +62,10 @@ export default function RoutinePage() {
   const [savedRoutines, setSavedRoutines] = useState<SavedRoutineSummary[]>([])
   const [settingCurrent, setSettingCurrent] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [scheduleEvents, setScheduleEvents] = useState<RoutineScheduleEvent[]>([])
+  const [scheduleLoading, setScheduleLoading] = useState(false)
+  const [exportingIcs, setExportingIcs] = useState(false)
+  const [exportingCsv, setExportingCsv] = useState(false)
 
   // Open "Add product" dialog when landing with ?addProduct=id
   useEffect(() => {
@@ -200,6 +226,83 @@ export default function RoutinePage() {
     }
   }
 
+  const handleDownloadIcs = async () => {
+    if (USE_MOCK || !user) return
+    try {
+      setExportingIcs(true)
+      const blob = await downloadRoutineScheduleIcs({
+        routineId: currentRoutineId ?? undefined,
+        includeAm: true,
+        includePm: true,
+        includeWeekly: false,
+        horizonDays: 30,
+      })
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "skincare-routine-schedule.ics"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch {
+      // Swallow and rely on generic UI error patterns later if needed.
+    } finally {
+      setExportingIcs(false)
+    }
+  }
+
+  const handleDownloadHistoryCsv = async () => {
+    if (USE_MOCK || !user) return
+    try {
+      setExportingCsv(true)
+      const blob = await downloadHistoryCsv()
+      if (!blob) return
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "skincare-history.csv"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    } catch {
+      // Swallow for now; rely on generic error patterns later if needed.
+    } finally {
+      setExportingCsv(false)
+    }
+  }
+
+  useEffect(() => {
+    if (USE_MOCK || !user) return
+    if (!currentRoutineId && !currentRoutineName && amSteps.length === 0 && pmSteps.length === 0) {
+      setScheduleEvents([])
+      return
+    }
+    let cancelled = false
+    setScheduleLoading(true)
+    getRoutineSchedulePreview({
+      routineId: currentRoutineId ?? undefined,
+      includeAm: true,
+      includePm: true,
+      includeWeekly: false,
+      horizonDays: 30,
+    })
+      .then(({ events }) => {
+        if (!cancelled) setScheduleEvents(events)
+      })
+      .catch(() => {
+        if (!cancelled) setScheduleEvents([])
+      })
+      .finally(() => {
+        if (!cancelled) setScheduleLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id, currentRoutineId, currentRoutineName, amSteps.length, pmSteps.length])
+
   return (
     <div className="px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
@@ -251,7 +354,7 @@ export default function RoutinePage() {
           </div>
         </div>
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_320px]">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
           {/* Routine Builder - Tabs rendered only after mount to avoid hydration mismatch (Radix IDs) */}
           <div className="space-y-6">
             {!USE_MOCK && user && (
@@ -377,7 +480,7 @@ export default function RoutinePage() {
             </ClientOnlyTabs>
           </div>
 
-          {/* Sidebar - Routine Health & Ingredient Insights */}
+          {/* Sidebar - Routine Health, Insights, Calendar preview, Quick Actions */}
           <aside className="space-y-6">
             {health && <RoutineHealthCard health={health} />}
             {!USE_MOCK && (
@@ -386,6 +489,69 @@ export default function RoutinePage() {
                 loading={insightsLoading}
                 hasRoutineProducts={insights?.hasRoutineProducts}
               />
+            )}
+
+            {!USE_MOCK && user && (
+              <div className="rounded-xl border border-border bg-card p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="text-sm font-semibold text-foreground">Calendar preview</h3>
+                    <p className="text-xs text-muted-foreground">
+                      A lightweight snapshot of the next 30 days. Download as a calendar file to
+                      import elsewhere.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={handleDownloadIcs}
+                    disabled={scheduleLoading || exportingIcs || scheduleEvents.length === 0}
+                  >
+                    {exportingIcs ? "Preparing…" : "Download .ics"}
+                  </Button>
+                </div>
+                <div className="mt-3 space-y-2">
+                  {scheduleLoading && (
+                    <p className="text-xs text-muted-foreground">Building your calendar…</p>
+                  )}
+                  {!scheduleLoading && scheduleEvents.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No upcoming events yet. Add products to your AM or PM routine to see them
+                      appear here.
+                    </p>
+                  )}
+                  {!scheduleLoading && scheduleEvents.length > 0 && (
+                    <div className="max-h-40 space-y-1 overflow-auto rounded-md border border-dashed border-border p-2 text-[11px]">
+                      {scheduleEvents.slice(0, 12).map((evt) => (
+                        <div
+                          key={evt.id}
+                          className="flex items-center justify-between gap-2 rounded px-2 py-1 hover:bg-accent/60"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex gap-2 font-medium text-muted-foreground">
+                              <span>{evt.date}</span>
+                              <span>•</span>
+                              <span>{evt.time}</span>
+                            </div>
+                            <div className="truncate text-foreground">{evt.label}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2 flex justify-end">
+                    <Button
+                      variant="link"
+                      size="sm"
+                      className="h-auto px-0 text-[11px] text-primary"
+                      asChild
+                    >
+                      <a href="/routine/calendar">Open full calendar →</a>
+                    </Button>
+                  </div>
+                </div>
+              </div>
             )}
 
             {!USE_MOCK && user && (
@@ -464,6 +630,16 @@ export default function RoutinePage() {
                 Quick Actions
               </h3>
               <div className="space-y-2">
+                {!USE_MOCK && user && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start"
+                    onClick={handleDownloadHistoryCsv}
+                    disabled={exportingCsv}
+                  >
+                    {exportingCsv ? "Preparing export…" : "Export history (CSV)"}
+                  </Button>
+                )}
                 <Button variant="outline" className="w-full justify-start" asChild>
                   <a href="/product-check">Check New Product</a>
                 </Button>

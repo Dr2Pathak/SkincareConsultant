@@ -8,6 +8,7 @@ create table if not exists public.profiles (
   concerns text[] default '{}',
   avoid_list text[] default '{}',
   tolerance text default 'medium' check (tolerance in ('low', 'medium', 'high')),
+  schedule_overrides jsonb not null default '{}',
   updated_at timestamptz default now()
 );
 

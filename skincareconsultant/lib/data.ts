@@ -24,6 +24,7 @@ import type {
   RoutineHealth,
   RoutineInsights,
 } from "./types"
+import type { RoutineScheduleEvent } from "./routine-schedule"
 
 /** True when env NEXT_PUBLIC_USE_MOCK is "true". Use for conditional UI (e.g. routine page initial state). */
 export const USE_MOCK =
@@ -88,6 +89,58 @@ export async function getRoutineHealth(): Promise<RoutineHealth> {
 export async function getRoutineInsights(): Promise<RoutineInsights> {
   if (useMock) return Promise.resolve({ conflicts: [], helps: [] })
   return api.getRoutineInsights()
+}
+
+export async function getRoutineSchedulePreview(params: {
+  routineId?: string
+  includeAm?: boolean
+  includePm?: boolean
+  includeWeekly?: boolean
+  horizonDays?: number
+  amTime?: string
+  pmTime?: string
+  weeklyDays?: string[]
+  weeklyTime?: string
+}): Promise<{ events: RoutineScheduleEvent[] }> {
+  if (useMock) {
+    // Simple mock: no events when using mock data for now.
+    return Promise.resolve({ events: [] })
+  }
+  return api.getRoutineSchedulePreview(params) as Promise<{ events: RoutineScheduleEvent[] }>
+}
+
+export async function downloadRoutineScheduleIcs(params: {
+  routineId?: string
+  includeAm?: boolean
+  includePm?: boolean
+  includeWeekly?: boolean
+  horizonDays?: number
+  amTime?: string
+  pmTime?: string
+  weeklyDays?: string[]
+  weeklyTime?: string
+}): Promise<Blob | null> {
+  if (useMock) {
+    return Promise.resolve(null)
+  }
+  return api.downloadRoutineScheduleIcs(params)
+}
+
+export async function downloadHistoryCsv(): Promise<Blob | null> {
+  if (useMock) {
+    return Promise.resolve(null)
+  }
+  return api.downloadHistoryCsv()
+}
+
+export async function getScheduleOverrides(): Promise<Record<string, string>> {
+  if (useMock) return Promise.resolve({})
+  return api.getScheduleOverrides()
+}
+
+export async function updateScheduleOverrides(overrides: Record<string, string>): Promise<void> {
+  if (useMock) return Promise.resolve()
+  return api.updateScheduleOverrides(overrides)
 }
 
 export async function sendChatMessage(
