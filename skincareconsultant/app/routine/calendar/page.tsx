@@ -167,7 +167,7 @@ export default function RoutineCalendarPage() {
     const start = new Date()
     start.setHours(0, 0, 0, 0)
     const dates = getDatesInRange(start, horizonDays)
-    const [primary, secondary] = savedRoutines
+    const [, secondary] = savedRoutines
     const suggested: Record<string, string> = {}
     const treatmentDays = new Set(weeklyDays.map((d) => d.toLowerCase()))
     for (const dateStr of dates) {

@@ -33,13 +33,6 @@ function formatDate(d: Date): string {
   return d.toISOString().slice(0, 10)
 }
 
-function parseTimeToDate(base: Date, time: string | undefined): Date {
-  const [hStr, mStr] = (time ?? "08:00").split(":")
-  const d = new Date(base)
-  d.setHours(Number(hStr) || 0, Number(mStr) || 0, 0, 0)
-  return d
-}
-
 function getProductsFromSteps(steps: RoutineStep[]): Array<Pick<Product, "id" | "name" | "brand">> {
   const seen = new Set<string>()
   const result: Array<Pick<Product, "id" | "name" | "brand">> = []
