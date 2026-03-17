@@ -183,6 +183,17 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
 
 ---
 
+## Engineering highlights & optimizations
+
+- **Dual-layer intelligence (RAG + graph)**: Chat and compatibility combine a semantic RAG layer (Pinecone + Gemini) with a structural Neo4j graph. This lets the system talk about real ingredient interactions in the user’s routine with explanations that can be traced back to both retrieved documents and graph edges.
+- **Safety‑first compatibility**: Avoid‑list and graph conflicts always drive the primary verdict and score; RAG goalAlignment is layered on as a soft signal and never overrides safety rules.
+- **RAG performance**: A small in‑memory cache keyed by normalized message + routine hash avoids redundant embedding + RAG calls. Two‑stage retrieval (query, then optional routine‑focused query) is only used when needed, and RAG queries are filtered by document type to keep responses focused and cheap.
+- **Lean schedule persistence**: Per‑day routine assignments are stored as a JSONB map (`schedule_overrides`) on the profile. This keeps the schema simple while making the interactive calendar fully persistent.
+- **JSONB routines**: Routines are stored as JSONB AM/PM arrays so the step model can evolve without schema churn, while still being strongly typed in TypeScript.
+- **Testing and CI hooks**: Husky enforces ESLint with `--max-warnings 0`, `tsc --noEmit`, and Vitest on push. Core utilities (`inci-resolver`, `routine-schedule`, `history-export`), API routes, and key pages all have tests.
+
+---
+
 ## Stack and architecture
 
 - **Frontend**
@@ -221,7 +232,7 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
 - **scripts/combine-datasets/** — Pipeline to combine Kaggle datasets into products + graph + RAG JSON. See [scripts/combine-datasets/README.md](scripts/combine-datasets/README.md).
 - **scripts/migrations/** — SQL migrations for Supabase tables (e.g. `add-schedule-overrides.sql`).
 - **.husky/** — Git hooks (lint + typecheck on commit, tests on push).
-- **docs/** — [INTEGRATE_V0.md](docs/INTEGRATE_V0.md) and other developer docs.
+- **docs/** — `PRD.md` (product/architecture spec) and `BACKEND_SETUP.md` (backend setup guide).
 
 ---
 
@@ -233,7 +244,7 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
 | `npm run build`                | Next.js build                     |
 | `npm run start`                | Next.js production                |
 | `npm run lint`                 | ESLint (Next + core-web-vitals)  |
-| `npm run typecheck`            | `tsc --noEmit`                    |
+| `npm run typecheck`            | `tsc --NoEmit`                    |
 | `npm run test`                 | Vitest                            |
 | `npm run combine-datasets`     | Download Kaggle data and build products + graph |
 | `npm run combine-datasets:dry-run` | Run pipeline without writing files |
@@ -250,9 +261,3 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
     - Supabase-ready product JSON.
     - Neo4j graph (nodes/edges/Cypher).
     - RAG chunks with `RagMetadata` for Pinecone.
-
----
-
-## Integrating a v0 export
-
-See **[docs/INTEGRATE_V0.md](docs/INTEGRATE_V0.md)** for instructions to unzip a v0 frontend into `skincareconsultant/` and keep lint/typecheck/test and hooks working. The current app is already structured for smooth integration with v0 exports. 
