@@ -216,6 +216,10 @@ You can switch to real services later by filling in `.env.local` and flipping `N
 ## 5. Which services each feature uses
 
 - **Chat (RAG + knowledge graph):** Each message is embedded with Gemini and queried against Pinecone; retrieved chunks are passed to the LLM. When the user’s current routine is sent, the backend also: (1) fetches product INCI from Supabase and queries **Neo4j** for `CONFLICTS_WITH` and `HELPS` among those ingredients, and injects that into the system prompt so suggestions are specific to their products; (2) runs a second RAG query using routine product names to pull in more relevant ingredient/product chunks. So chat uses both RAG (Pinecone) and the knowledge graph (Neo4j) when a routine is provided.
+- **Chat latency notes (in-memory caches):** The chat API uses small in-memory TTL caches to reduce repeated work:
+  - Pinecone RAG context (keyed by normalized message + routine hash).
+  - Neo4j knowledge-context (keyed by routine hash only).
+  These caches are per server instance (so they may be cold after deployments/cold starts).
 - **Compatibility:** Product INCI lists are checked against the **Neo4j** graph (`CONFLICTS_WITH` edges) and the user’s profile `avoid_list`. Scores and “patch test recommended” / “not recommended” come from this.
 - **Routine health:** The authenticated user’s routine is loaded; product INCI lists are used to compute exfoliation load and retinoid strength, and **Neo4j** is queried for `CONFLICTS_WITH` among those ingredients. The score and warnings (e.g. “Multiple exfoliants”, “Retinoid with exfoliants”) are derived from this.
 - **Ingredient map:** The full **Neo4j** graph (nodes and edges) is served via `GET /api/graph` and shown as “Full graph”. “My routine” filters that graph to ingredients in the user’s routine plus connected nodes so they can see how their products relate.

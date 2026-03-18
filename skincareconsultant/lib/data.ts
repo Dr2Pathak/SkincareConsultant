@@ -91,6 +91,32 @@ export async function getRoutineInsights(): Promise<RoutineInsights> {
   return api.getRoutineInsights()
 }
 
+export async function getRoutineBootstrap(): Promise<{
+  routine: Routine
+  health: RoutineHealth
+  insights: RoutineInsights
+  savedRoutines: SavedRoutineSummary[]
+  scheduleEvents: RoutineScheduleEvent[]
+}> {
+  if (useMock) {
+    return Promise.resolve({
+      routine: mockRoutine,
+      health: mockRoutineHealth,
+      insights: { conflicts: [], helps: [], hasRoutineProducts: false } as RoutineInsights,
+      savedRoutines: [],
+      scheduleEvents: [],
+    })
+  }
+  const res = (await api.getRoutineBootstrap()) as {
+    routine: Routine
+    health: RoutineHealth
+    insights: RoutineInsights
+    savedRoutines: SavedRoutineSummary[]
+    scheduleEvents: RoutineScheduleEvent[]
+  }
+  return res
+}
+
 export async function getRoutineSchedulePreview(params: {
   routineId?: string
   includeAm?: boolean
@@ -141,6 +167,28 @@ export async function getScheduleOverrides(): Promise<Record<string, string>> {
 export async function updateScheduleOverrides(overrides: Record<string, string>): Promise<void> {
   if (useMock) return Promise.resolve()
   return api.updateScheduleOverrides(overrides)
+}
+
+export async function getRoutineCalendarBootstrap(): Promise<{
+  defaultRoutineId: string | null
+  savedRoutines: SavedRoutineSummary[]
+  overrides: Record<string, string>
+}> {
+  if (useMock) {
+    return Promise.resolve({
+      defaultRoutineId: null,
+      savedRoutines: [],
+      overrides: {},
+    })
+  }
+  return api.getRoutineCalendarBootstrap()
+}
+
+export async function getRoutineIngredientIds(): Promise<{ ingredientIds: string[] }> {
+  if (useMock) {
+    return Promise.resolve({ ingredientIds: [] })
+  }
+  return api.getRoutineIngredientIds()
 }
 
 export async function sendChatMessage(

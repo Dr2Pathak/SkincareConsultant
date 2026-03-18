@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useSearchParams } from "next/navigation"
 import { Sun, Moon, Plus, PackagePlus, Layers, Check, FilePlus2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -14,17 +13,13 @@ import { ClientOnlyTabs } from "@/components/client-only-tabs"
 import { useAuth } from "@/components/auth/auth-provider"
 import { mockRoutine, mockRoutineHealth } from "@/lib/mock-data"
 import {
-  getRoutine,
-  getRoutines,
-  getRoutineHealth,
-  getRoutineInsights,
+  getRoutineBootstrap,
   getMockProductsForPicker,
   searchProducts,
   saveRoutine,
   setCurrentRoutine,
   deleteRoutine,
   getProduct,
-  getRoutineSchedulePreview,
   downloadRoutineScheduleIcs,
   downloadHistoryCsv,
   USE_MOCK,
@@ -43,9 +38,8 @@ const ROUTINE_NAME_MAX_LENGTH = 64
 const DEFAULT_ROUTINE_NAME = "My routine"
 
 export default function RoutinePage() {
-  const searchParams = useSearchParams()
-  const addProductId = searchParams.get("addProduct")
   const { user } = useAuth()
+  const [addProductId, setAddProductId] = useState<string | null>(null)
 
   const [amSteps, setAmSteps] = useState<RoutineStep[]>(USE_MOCK ? mockRoutine.am : [])
   const [pmSteps, setPmSteps] = useState<RoutineStep[]>(USE_MOCK ? mockRoutine.pm : [])
@@ -69,6 +63,12 @@ export default function RoutinePage() {
 
   // Open "Add product" dialog when landing with ?addProduct=id
   useEffect(() => {
+    if (typeof window === "undefined") return
+    const params = new URLSearchParams(window.location.search)
+    setAddProductId(params.get("addProduct"))
+  }, [])
+
+  useEffect(() => {
     if (addProductId) {
       setAddProductInitialId(addProductId)
       setAddProductDialogOpen(true)
@@ -76,22 +76,27 @@ export default function RoutinePage() {
   }, [addProductId])
 
   useEffect(() => {
-    if (USE_MOCK) return
+    if (USE_MOCK || !user) return
     let cancelled = false
     setInsightsLoading(true)
-    Promise.all([getRoutine(), getRoutineHealth(), getRoutineInsights(), user ? getRoutines() : Promise.resolve([])])
-      .then(([routine, h, ins, list]) => {
+    setScheduleLoading(true)
+    getRoutineBootstrap()
+      .then((res) => {
         if (cancelled) return
-        setAmSteps(Array.isArray(routine.am) ? routine.am : [])
-        setPmSteps(Array.isArray(routine.pm) ? routine.pm : [])
-        setHealth(h)
-        setInsights(ins)
-        setCurrentRoutineId(routine.id ?? null)
-        setCurrentRoutineName(routine.name ?? null)
-        setSavedRoutines(Array.isArray(list) ? list : [])
+        setAmSteps(Array.isArray(res.routine.am) ? res.routine.am : [])
+        setPmSteps(Array.isArray(res.routine.pm) ? res.routine.pm : [])
+        setHealth(res.health)
+        setInsights(res.insights)
+        setCurrentRoutineId(res.routine.id ?? null)
+        setCurrentRoutineName(res.routine.name ?? null)
+        setSavedRoutines(Array.isArray(res.savedRoutines) ? res.savedRoutines : [])
+        setScheduleEvents((Array.isArray(res.scheduleEvents) ? res.scheduleEvents : []) as RoutineScheduleEvent[])
       })
       .finally(() => {
-        if (!cancelled) setInsightsLoading(false)
+        if (!cancelled) {
+          setInsightsLoading(false)
+          setScheduleLoading(false)
+        }
       })
     return () => {
       cancelled = true
@@ -118,15 +123,13 @@ export default function RoutinePage() {
       setSaveMessage("ok")
       setSaveError(null)
       setTimeout(() => setSaveMessage(null), 3000)
-      Promise.all([getRoutine(), getRoutineHealth(), getRoutineInsights(), getRoutines()])
-        .then(([r, h, ins, list]) => {
-          setHealth(h)
-          setInsights(ins)
-          setSavedRoutines(list)
-          if (r.id) setCurrentRoutineId(r.id)
-          if (r.name) setCurrentRoutineName(r.name)
-        })
-        .catch(() => {})
+      const res = await getRoutineBootstrap()
+      setHealth(res.health)
+      setInsights(res.insights)
+      setSavedRoutines(res.savedRoutines)
+      setCurrentRoutineId(res.routine.id ?? null)
+      setCurrentRoutineName(res.routine.name ?? null)
+      setScheduleEvents((res.scheduleEvents ?? []) as RoutineScheduleEvent[])
     } catch (e) {
       setSaveMessage("error")
       setSaveError(e instanceof Error ? e.message : "Save failed")
@@ -140,14 +143,15 @@ export default function RoutinePage() {
     setSettingCurrent(routineId)
     try {
       await setCurrentRoutine(routineId)
-      const [routine, h, ins, list] = await Promise.all([getRoutine(), getRoutineHealth(), getRoutineInsights(), getRoutines()])
-      setAmSteps(Array.isArray(routine.am) ? routine.am : [])
-      setPmSteps(Array.isArray(routine.pm) ? routine.pm : [])
-      setHealth(h)
-      setInsights(ins)
-      setSavedRoutines(list)
-      setCurrentRoutineId(routine.id ?? null)
-      setCurrentRoutineName(routine.name ?? null)
+      const res = await getRoutineBootstrap()
+      setAmSteps(Array.isArray(res.routine.am) ? res.routine.am : [])
+      setPmSteps(Array.isArray(res.routine.pm) ? res.routine.pm : [])
+      setHealth(res.health)
+      setInsights(res.insights)
+      setSavedRoutines(res.savedRoutines)
+      setCurrentRoutineId(res.routine.id ?? null)
+      setCurrentRoutineName(res.routine.name ?? null)
+      setScheduleEvents((res.scheduleEvents ?? []) as RoutineScheduleEvent[])
     } finally {
       setSettingCurrent(null)
     }
@@ -158,6 +162,7 @@ export default function RoutinePage() {
     setPmSteps([])
     setCurrentRoutineId(null)
     setCurrentRoutineName(DEFAULT_ROUTINE_NAME)
+    setScheduleEvents([])
   }
 
   const handleDeleteRoutine = async (routineId: string, name: string) => {
@@ -166,14 +171,15 @@ export default function RoutinePage() {
     setDeletingId(routineId)
     try {
       await deleteRoutine(routineId)
-      const [routine, h, ins, list] = await Promise.all([getRoutine(), getRoutineHealth(), getRoutineInsights(), getRoutines()])
-      setAmSteps(Array.isArray(routine.am) ? routine.am : [])
-      setPmSteps(Array.isArray(routine.pm) ? routine.pm : [])
-      setHealth(h)
-      setInsights(ins)
-      setSavedRoutines(list)
-      setCurrentRoutineId(routine.id ?? null)
-      setCurrentRoutineName(routine.name ?? null)
+      const res = await getRoutineBootstrap()
+      setAmSteps(Array.isArray(res.routine.am) ? res.routine.am : [])
+      setPmSteps(Array.isArray(res.routine.pm) ? res.routine.pm : [])
+      setHealth(res.health)
+      setInsights(res.insights)
+      setSavedRoutines(res.savedRoutines)
+      setCurrentRoutineId(res.routine.id ?? null)
+      setCurrentRoutineName(res.routine.name ?? null)
+      setScheduleEvents((res.scheduleEvents ?? []) as RoutineScheduleEvent[])
     } finally {
       setDeletingId(null)
     }
@@ -273,35 +279,6 @@ export default function RoutinePage() {
       setExportingCsv(false)
     }
   }
-
-  useEffect(() => {
-    if (USE_MOCK || !user) return
-    if (!currentRoutineId && !currentRoutineName && amSteps.length === 0 && pmSteps.length === 0) {
-      setScheduleEvents([])
-      return
-    }
-    let cancelled = false
-    setScheduleLoading(true)
-    getRoutineSchedulePreview({
-      routineId: currentRoutineId ?? undefined,
-      includeAm: true,
-      includePm: true,
-      includeWeekly: false,
-      horizonDays: 30,
-    })
-      .then(({ events }) => {
-        if (!cancelled) setScheduleEvents(events)
-      })
-      .catch(() => {
-        if (!cancelled) setScheduleEvents([])
-      })
-      .finally(() => {
-        if (!cancelled) setScheduleLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [user?.id, currentRoutineId, currentRoutineName, amSteps.length, pmSteps.length])
 
   return (
     <div className="px-4 py-8 sm:px-6 lg:px-8">

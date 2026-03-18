@@ -54,6 +54,7 @@ type CacheEntry = {
 }
 
 const contextCache = new Map<string, CacheEntry>()
+const knowledgeContextCache = new Map<string, CacheEntry>()
 
 function getCacheKey(message: string, routine: RoutineForPrompt | null): string {
   return `${normalizeMessage(message)}::${makeRoutineHash(routine)}`
@@ -71,6 +72,26 @@ function getCachedContext(key: string): string | null {
 
 function setCachedContext(key: string, context: string): void {
   contextCache.set(key, { createdAt: Date.now(), context })
+}
+
+function getKnowledgeCacheKey(routine: RoutineForPrompt | null): string | null {
+  const routineHash = makeRoutineHash(routine)
+  if (!routineHash) return null
+  return `knowledge::${routineHash}`
+}
+
+function getCachedKnowledgeContext(key: string): string | null {
+  const entry = knowledgeContextCache.get(key)
+  if (!entry) return null
+  if (Date.now() - entry.createdAt > CACHE_TTL_MS) {
+    knowledgeContextCache.delete(key)
+    return null
+  }
+  return entry.context
+}
+
+function setCachedKnowledgeContext(key: string, context: string): void {
+  knowledgeContextCache.set(key, { createdAt: Date.now(), context })
 }
 
 function getPineconeFilter(queryType?: string): Record<string, unknown> | undefined {
@@ -93,6 +114,9 @@ export async function POST(request: Request) {
   }
 
   try {
+    const enableTiming = process.env.NODE_ENV === "development"
+    const requestStart = enableTiming ? Date.now() : 0
+
     const body = await request.json().catch(() => ({}))
     const message = typeof body.message === "string" ? body.message.trim() : ""
     if (!message) {
@@ -110,81 +134,129 @@ export async function POST(request: Request) {
           .map((s) => s.productId)
           .filter((id): id is string => !!id)
       : []
-    const knowledgeContext = productIds.length > 0 ? await getRoutineKnowledgeContext(productIds) : ""
-
     const cacheKey = getCacheKey(message, routine)
-    let context = getCachedContext(cacheKey)
+    const knowledgeCacheKey = getKnowledgeCacheKey(routine)
+    const cachedKnowledgeContext = knowledgeCacheKey ? getCachedKnowledgeContext(knowledgeCacheKey) : null
 
-    if (!context) {
-      const [embedding] = await embedTexts([message])
-      const pc = getPineconeClient()
-      const host = getPineconeIndexHost()
-      const index = pc.index({ host })
-      const filter = getPineconeFilter(typeof body.queryType === "string" ? body.queryType : undefined)
+    const cachedContext = getCachedContext(cacheKey)
 
-      const queryResult = await index.query({
-        vector: embedding,
-        topK: TOP_K,
-        includeMetadata: true,
-        ...(filter ? { filter } : {}),
-      })
+    const pineconePromise: Promise<string> = cachedContext !== null
+      ? Promise.resolve(cachedContext)
+      : (async () => {
+          const t0 = enableTiming ? Date.now() : 0
+          const [embedding] = await embedTexts([message])
+          const t1 = enableTiming ? Date.now() : 0
 
-      let matches =
-        (queryResult as { matches?: Array<{ id?: string; metadata?: RagMetadata }> }).matches ?? []
+          const pc = getPineconeClient()
+          const host = getPineconeIndexHost()
+          const index = pc.index({ host })
+          const filter = getPineconeFilter(
+            typeof body.queryType === "string" ? body.queryType : undefined,
+          )
 
-      if (routine && productIds.length > 0) {
-        const routineProductNames = routine.am
-          .concat(routine.pm)
-          .map((s) => s.product?.name)
-          .filter(Boolean) as string[]
-        if (routineProductNames.length > 0) {
-          const routineQuery = `skincare routine ingredients products: ${routineProductNames
-            .slice(0, 10)
-            .join(", ")}`
-          const [routineEmbedding] = await embedTexts([routineQuery])
-          const routineResult = await index.query({
-            vector: routineEmbedding,
-            topK: ROUTINE_RAG_TOP_K,
+          const queryResult = await index.query({
+            vector: embedding,
+            topK: TOP_K,
             includeMetadata: true,
             ...(filter ? { filter } : {}),
           })
-          const routineMatches =
-            (routineResult as { matches?: Array<{ id?: string; metadata?: RagMetadata }> }).matches ?? []
-          const seen = new Set(matches.map((m) => m.id))
-          for (const m of routineMatches) {
-            if (m.id && !seen.has(m.id)) {
-              seen.add(m.id)
-              matches = [...matches, m]
+          const t2 = enableTiming ? Date.now() : 0
+
+          let matches =
+            (queryResult as { matches?: Array<{ id?: string; metadata?: RagMetadata }> }).matches ?? []
+
+          if (routine && productIds.length > 0) {
+            const routineProductNames = routine.am
+              .concat(routine.pm)
+              .map((s) => s.product?.name)
+              .filter(Boolean) as string[]
+            if (routineProductNames.length > 0) {
+              const routineQuery = `skincare routine ingredients products: ${routineProductNames
+                .slice(0, 10)
+                .join(", ")}`
+              const [routineEmbedding] = await embedTexts([routineQuery])
+              const routineResult = await index.query({
+                vector: routineEmbedding,
+                topK: ROUTINE_RAG_TOP_K,
+                includeMetadata: true,
+                ...(filter ? { filter } : {}),
+              })
+              const routineMatches =
+                (routineResult as { matches?: Array<{ id?: string; metadata?: RagMetadata }> }).matches ?? []
+              const seen = new Set(matches.map((m) => m.id))
+              for (const m of routineMatches) {
+                if (m.id && !seen.has(m.id)) {
+                  seen.add(m.id)
+                  matches = [...matches, m]
+                }
+              }
             }
           }
-        }
-      }
 
-      context = matches
-        .map((h) => {
-          const meta = (h.metadata ?? {}) as RagMetadata
-          const type = meta.type ?? "ingredient"
-          const name = meta.name ?? ""
-          const text = (meta.text ?? "") as string
-          const header = `[${type}${name ? `: ${name}` : ""}]`
-          const body = text.trim()
-          return body ? `${header}\n${body}` : header
-        })
-        .filter((s) => s.length > 0)
-        .join("\n\n")
+          const builtContext = matches
+            .map((h) => {
+              const meta = (h.metadata ?? {}) as RagMetadata
+              const type = meta.type ?? "ingredient"
+              const name = meta.name ?? ""
+              const text = (meta.text ?? "") as string
+              const header = `[${type}${name ? `: ${name}` : ""}]`
+              const body = text.trim()
+              return body ? `${header}\n${body}` : header
+            })
+            .filter((s) => s.length > 0)
+            .join("\n\n")
 
-      if (context) {
-        setCachedContext(cacheKey, context)
-      }
-    }
+          // Only cache non-empty to preserve previous behavior + test assumptions.
+          if (builtContext) {
+            setCachedContext(cacheKey, builtContext)
+          }
+
+          if (enableTiming) {
+            console.log("[chat] pinecone", {
+              embedMs: t1 - t0,
+              queryMs: t2 - t1,
+              contextCached: cachedContext !== null,
+              builtContextChars: builtContext.length,
+            })
+          }
+
+          return builtContext
+        })()
+
+    const knowledgePromise: Promise<string> = cachedKnowledgeContext !== null
+      ? Promise.resolve(cachedKnowledgeContext)
+      : (async () => {
+          const t0 = enableTiming ? Date.now() : 0
+          if (productIds.length === 0 || !knowledgeCacheKey) return ""
+          const knowledgeContext = await getRoutineKnowledgeContext(productIds)
+          const t1 = enableTiming ? Date.now() : 0
+          // Cache even empty string to avoid repeated Neo4j work for "no hits".
+          setCachedKnowledgeContext(knowledgeCacheKey, knowledgeContext)
+          if (enableTiming) {
+            console.log("[chat] neo4j knowledge", {
+              neo4jMs: t1 - t0,
+              cached: false,
+              knowledgeChars: knowledgeContext.length,
+            })
+          }
+          return knowledgeContext
+        })()
+
+    const [context, knowledgeContext] = await Promise.all([pineconePromise, knowledgePromise])
 
     const systemPrompt = [
       SYSTEM_PREFIX,
       routineContext,
       knowledgeContext,
-      context ? `\n\nRetrieved RAG context:\n${context.slice(0, 12000)}` : "\n\nNo specific RAG context was retrieved; use the knowledge-graph and routine above, and general skincare knowledge.",
+      context
+        ? `\n\nRetrieved RAG context:\n${context.slice(0, 8000)}`
+        : "\n\nNo specific RAG context was retrieved; use the knowledge-graph and routine above, and general skincare knowledge.",
     ].join("")
     const reply = await generateChatReply(systemPrompt, message)
+
+    if (enableTiming) {
+      console.log("[chat] totalMs", { total: Date.now() - requestStart })
+    }
     return NextResponse.json({ reply })
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error"

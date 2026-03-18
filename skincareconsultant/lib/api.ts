@@ -165,6 +165,28 @@ export async function getRoutineInsights(): Promise<RoutineInsights> {
   return res.json() as Promise<RoutineInsights>;
 }
 
+export async function getRoutineBootstrap(): Promise<{
+  routine: Routine;
+  health: RoutineHealth;
+  insights: RoutineInsights;
+  savedRoutines: SavedRoutineSummary[];
+  scheduleEvents: unknown[];
+}> {
+  const url = `${API_BASE}/api/routine-bootstrap`;
+  const res = await fetch(url, { headers: authHeaders() });
+  if (!res.ok) {
+    console.error("Routine bootstrap fetch failed", { url, status: res.status });
+    throw new Error("We couldn't load your routine data. Please try again.");
+  }
+  return res.json() as Promise<{
+    routine: Routine;
+    health: RoutineHealth;
+    insights: RoutineInsights;
+    savedRoutines: SavedRoutineSummary[];
+    scheduleEvents: unknown[];
+  }>;
+}
+
 export async function getRoutineSchedulePreview(params: {
   routineId?: string
   includeAm?: boolean
@@ -250,6 +272,36 @@ export async function updateScheduleOverrides(overrides: Record<string, string>)
     const data = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(data?.error ?? "Failed to save calendar assignments.")
   }
+}
+
+export async function getRoutineCalendarBootstrap(): Promise<{
+  defaultRoutineId: string | null
+  savedRoutines: SavedRoutineSummary[]
+  overrides: Record<string, string>
+}> {
+  const url = `${API_BASE}/api/routine-calendar-bootstrap`
+  const res = await fetch(url, { headers: authHeaders() })
+  if (!res.ok) {
+    if (res.status === 401) return { defaultRoutineId: null, savedRoutines: [], overrides: {} }
+    console.error("Routine calendar bootstrap failed", { url, status: res.status })
+    throw new Error("We couldn't load your calendar data. Please try again.")
+  }
+  return res.json() as Promise<{
+    defaultRoutineId: string | null
+    savedRoutines: SavedRoutineSummary[]
+    overrides: Record<string, string>
+  }>
+}
+
+export async function getRoutineIngredientIds(): Promise<{ ingredientIds: string[] }> {
+  const url = `${API_BASE}/api/routine-ingredient-ids`
+  const res = await fetch(url, { headers: authHeaders() })
+  if (!res.ok) {
+    if (res.status === 401) return { ingredientIds: [] }
+    console.error("Routine ingredient ids fetch failed", { url, status: res.status })
+    throw new Error("We couldn't load your routine ingredients right now.")
+  }
+  return res.json() as Promise<{ ingredientIds: string[] }>
 }
 
 export interface ChatPayload {

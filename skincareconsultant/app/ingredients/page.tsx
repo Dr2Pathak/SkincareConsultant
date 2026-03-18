@@ -3,13 +3,9 @@
 import { useState, useEffect, useMemo } from "react"
 import { GraphVisualization } from "@/components/graph/graph-visualization"
 import { Disclaimer } from "@/components/disclaimer"
-import { getKnowledgeGraph, getRoutine, getProduct } from "@/lib/data"
+import { getKnowledgeGraph, getRoutineIngredientIds } from "@/lib/data"
 import { USE_MOCK } from "@/lib/data"
-import type { KnowledgeGraph, RoutineStep } from "@/lib/types"
-
-function normalizeInciId(inci: string): string {
-  return inci.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "")
-}
+import type { KnowledgeGraph } from "@/lib/types"
 
 /** Build subgraph containing routine ingredients and any nodes connected to them (families, concerns). */
 function subgraphForRoutineIngredients(
@@ -47,26 +43,9 @@ export default function IngredientsPage() {
       return
     }
     setLoadingRoutine(true)
-    getRoutine()
-      .then((r) => {
-        const am = Array.isArray(r.am) ? r.am : []
-        const pm = Array.isArray(r.pm) ? r.pm : []
-        const allSteps = [...am, ...pm]
-        return Promise.all(
-          allSteps
-            .filter((s): s is RoutineStep & { productId: string } => !!s.productId)
-            .map((s) => getProduct(s.productId))
-        )
-      })
-      .then((products) => {
-        const ids = new Set<string>()
-        for (const p of products) {
-          if (!p?.inciList) continue
-          for (const inci of p.inciList) {
-            ids.add(normalizeInciId(inci))
-          }
-        }
-        setRoutineIngredientIds(ids)
+    getRoutineIngredientIds()
+      .then(({ ingredientIds }) => {
+        setRoutineIngredientIds(new Set(ingredientIds))
       })
       .catch(() => setRoutineIngredientIds(new Set()))
       .finally(() => setLoadingRoutine(false))

@@ -4,9 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useAuth } from "@/components/auth/auth-provider"
 import { Button } from "@/components/ui/button"
 import {
-  getRoutine,
-  getRoutines,
-  getScheduleOverrides,
+  getRoutineCalendarBootstrap,
   updateScheduleOverrides,
 } from "@/lib/data"
 import { buildRoutineSchedule } from "@/lib/routine-schedule"
@@ -68,14 +66,13 @@ export default function RoutineCalendarPage() {
     let cancelled = false
     setLoading(true)
     setError(null)
-    Promise.all([getRoutines(), getScheduleOverrides(), getRoutine()])
-      .then(([routines, ov, current]) => {
+    getRoutineCalendarBootstrap()
+      .then((data) => {
         if (cancelled) return
-        setSavedRoutines(routines)
-        setOverrides(ov)
+        setSavedRoutines(data.savedRoutines)
+        setOverrides(data.overrides)
         setOverridesLoaded(true)
-        const currentId = current?.id ?? routines.find((r) => r.is_current)?.id ?? routines[0]?.id ?? null
-        setDefaultRoutineId(currentId)
+        setDefaultRoutineId(data.defaultRoutineId)
       })
       .catch(() => {
         if (!cancelled) setError("We couldn't load your routines or calendar.")

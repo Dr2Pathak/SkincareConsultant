@@ -28,16 +28,19 @@ vi.mock("@/lib/data", async (importOriginal) => {
   return {
     ...actual,
     USE_MOCK: false,
-    getRoutine: vi.fn().mockResolvedValue({ am: [], pm: [] }),
-    getRoutines: vi.fn().mockResolvedValue([]),
-    getRoutineHealth: vi.fn().mockResolvedValue({
-      score: 100,
-      warnings: [],
-      exfoliationLoad: 0,
-      retinoidStrength: 0,
-      conflictCount: 0,
+    getRoutineBootstrap: vi.fn().mockResolvedValue({
+      routine: { id: "r1", name: "My routine", am: [], pm: [] },
+      health: {
+        score: 100,
+        warnings: [],
+        exfoliationLoad: 0,
+        retinoidStrength: 0,
+        conflictCount: 0,
+      },
+      insights: { conflicts: [], helps: [], hasRoutineProducts: false },
+      savedRoutines: [],
+      scheduleEvents: [],
     }),
-    getRoutineInsights: vi.fn().mockResolvedValue({ conflicts: [], helps: [], hasRoutineProducts: false }),
     getMockProductsForPicker: () => [],
     searchProducts: vi.fn().mockResolvedValue([]),
     saveRoutine: vi.fn().mockResolvedValue({}),
@@ -58,11 +61,9 @@ describe("RoutinePage", () => {
     expect(screen.getByRole("tab", { name: /morning|AM/i })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: /evening|PM/i })).toBeInTheDocument();
   });
-
-  it("renders routine health section", () => {
+  it("does not render routine health card when signed out", () => {
     render(<RoutinePage />);
-    const headings = screen.getAllByRole("heading", { name: /routine health/i });
-    expect(headings.length).toBeGreaterThan(0);
+    expect(screen.queryByRole("heading", { name: /routine health/i })).not.toBeInTheDocument();
   });
 });
 

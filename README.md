@@ -23,6 +23,20 @@ npm run dev
 
 Open `http://localhost:3000`. Pre-commit runs lint + typecheck; pre-push runs tests.
 
+## Vercel Environment Variables
+Set these in your Vercel project (values come from your Supabase/Neo4j/Pinecone/Gemini accounts). Use `skincareconsultant/.env.example` as the source of truth:
+
+- `NEXT_PUBLIC_USE_MOCK` (optional; use real services with `false`)
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEO4J_URI`
+- `NEO4J_USER`
+- `NEO4J_PASSWORD`
+- `PINECONE_API_KEY`
+- `PINECONE_INDEX_HOST` (or `PINECONE_HOST`)
+- `GEMINI_API_KEY`
+
 ---
 
 ## Core features
@@ -78,6 +92,9 @@ Open `http://localhost:3000`. Pre-commit runs lint + typecheck; pre-push runs te
     - `message: string` (required).
     - Optional `routine` (AM/PM arrays of steps with `productId` and `product` name/brand).
     - Optional `queryType` (`ingredient` | `product` | `routine`) to bias RAG filters.
+  - **Routine-aware answering**
+    - The chat UI requires selecting which routine you want answers for (defaulting to today’s scheduled routine based on calendar overrides).
+    - The selected routine snapshot is sent to `POST /api/chat`, so the Neo4j “routine knowledge” context always matches the routine you’re asking about.
   - **RAG (Pinecone + Gemini)**:
     - Embeds the message with Gemini (`embedTexts`).
     - Queries Pinecone with:
@@ -88,9 +105,10 @@ Open `http://localhost:3000`. Pre-commit runs lint + typecheck; pre-push runs te
     - When a routine is provided, extracts product ids and calls `getRoutineKnowledgeContext`, which uses Neo4j conflicts/helps for those ingredients.
     - This context is appended to the system prompt, grounding responses in actual routine data.
   - **Context caching**:
-    - A small in-memory cache keyed by normalized message + routine hash:
-      - Avoids recomputing embeddings and Pinecone queries for repeated questions about the same routine.
-    - TTL-based expiration to keep memory bounded.
+    - Two small in-memory TTL caches to minimize latency:
+      - **Pinecone RAG context cache**: keyed by normalized message + routine hash.
+      - **Neo4j knowledge-context cache**: keyed by routine hash only.
+    - TTL-based expiration to keep memory bounded (caches are per server instance).
   - **Prompting**:
     - System prompt describes the assistant as a skincare consultant with:
       - Clear safety constraints (no diagnosis/treatment, must recommend patch testing).
@@ -187,7 +205,10 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
 
 - **Dual-layer intelligence (RAG + graph)**: Chat and compatibility combine a semantic RAG layer (Pinecone + Gemini) with a structural Neo4j graph. This lets the system talk about real ingredient interactions in the user’s routine with explanations that can be traced back to both retrieved documents and graph edges.
 - **Safety‑first compatibility**: Avoid‑list and graph conflicts always drive the primary verdict and score; RAG goalAlignment is layered on as a soft signal and never overrides safety rules.
-- **RAG performance**: A small in‑memory cache keyed by normalized message + routine hash avoids redundant embedding + RAG calls. Two‑stage retrieval (query, then optional routine‑focused query) is only used when needed, and RAG queries are filtered by document type to keep responses focused and cheap.
+- **Chat latency performance**: Two small in‑memory TTL caches reduce repeated work:
+  - Pinecone RAG context (keyed by normalized message + routine hash).
+  - Neo4j knowledge-context (keyed by routine hash).
+  Two-stage retrieval (query, then optional routine-focused query) and parallel fetching are used on cache misses to overlap compute/network time.
 - **Lean schedule persistence**: Per‑day routine assignments are stored as a JSONB map (`schedule_overrides`) on the profile. This keeps the schema simple while making the interactive calendar fully persistent.
 - **JSONB routines**: Routines are stored as JSONB AM/PM arrays so the step model can evolve without schema churn, while still being strongly typed in TypeScript.
 - **Testing and CI hooks**: Husky enforces ESLint with `--max-warnings 0`, `tsc --noEmit`, and Vitest on push. Core utilities (`inci-resolver`, `routine-schedule`, `history-export`), API routes, and key pages all have tests.

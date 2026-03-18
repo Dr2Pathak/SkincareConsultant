@@ -3,6 +3,7 @@ import { POST } from "./route"
 import { getChatEnvError } from "@/lib/env"
 import { embedTexts, generateChatReply } from "@/lib/gemini"
 import { getPineconeClient, getPineconeIndexHost } from "@/lib/pinecone"
+import { getRoutineKnowledgeContext } from "@/lib/chat-context"
 
 vi.mock("@/lib/env", () => ({ getChatEnvError: vi.fn() }))
 vi.mock("@/lib/gemini", () => ({
@@ -12,6 +13,9 @@ vi.mock("@/lib/gemini", () => ({
 vi.mock("@/lib/pinecone", () => ({
   getPineconeClient: vi.fn(),
   getPineconeIndexHost: vi.fn(),
+}))
+vi.mock("@/lib/chat-context", () => ({
+  getRoutineKnowledgeContext: vi.fn(),
 }))
 
 describe("POST /api/chat", () => {
@@ -25,6 +29,7 @@ describe("POST /api/chat", () => {
     } as unknown as ReturnType<typeof getPineconeClient>)
     vi.mocked(embedTexts).mockResolvedValue([[0.1, 0.2]])
     vi.mocked(generateChatReply).mockResolvedValue("Test reply.")
+    vi.mocked(getRoutineKnowledgeContext).mockResolvedValue("Knowledge context")
   })
 
   it("returns 400 when message is missing", async () => {
@@ -88,7 +93,12 @@ describe("POST /api/chat", () => {
       })),
     } as unknown as ReturnType<typeof getPineconeClient>)
 
-    const body = JSON.stringify({ message: "What is niacinamide?" })
+    vi.mocked(getRoutineKnowledgeContext).mockResolvedValue("Knowledge context")
+
+    const body = JSON.stringify({
+      message: "What is niacinamide?",
+      routine: { am: [{ productId: "prod1" }], pm: [] },
+    })
 
     const res1 = await POST(new Request("http://x", { method: "POST", body }))
     expect(res1.status).toBe(200)
@@ -99,5 +109,9 @@ describe("POST /api/chat", () => {
     // First call populates cache, second should reuse it and not hit Pinecone again.
     // We still embed twice (per-request), but Pinecone should only be queried once.
     expect(queryMock.mock.calls.length).toBeLessThanOrEqual(2)
+
+    // Knowledge context should be computed once for the same routine snapshot.
+    // (Second request reuses the Neo4j knowledgeContext TTL cache.)
+    expect(vi.mocked(getRoutineKnowledgeContext).mock.calls.length).toBeLessThanOrEqual(1)
   })
 })
