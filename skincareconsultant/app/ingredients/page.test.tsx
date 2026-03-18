@@ -1,6 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import IngredientsPage from "./page";
+
+vi.mock("@/components/graph/graph-visualization", () => ({
+  GraphVisualization: () => <div data-testid="graph-visualization" />,
+}));
 
 describe("IngredientsPage", () => {
   it("renders knowledge graph or ingredient map heading", () => {
