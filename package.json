@@ -13,7 +13,7 @@
     "lint": "npm run lint -w skincareconsultant",
     "typecheck": "npm run typecheck -w skincareconsultant",
     "test": "npm run test -w skincareconsultant",
-    "prepare": "husky",
+    "prepare": "node scripts/prepare-husky.cjs",
     "combine-datasets": "tsx scripts/combine-datasets/run.ts",
     "combine-datasets:no-download": "tsx scripts/combine-datasets/run.ts --no-download",
     "combine-datasets:dry-run": "tsx scripts/combine-datasets/run.ts --dry-run",
