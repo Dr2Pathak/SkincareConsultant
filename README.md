@@ -23,20 +23,6 @@ npm run dev
 
 Open `http://localhost:3000`. Pre-commit runs lint + typecheck; pre-push runs tests.
 
-## Vercel Environment Variables
-Set these in your Vercel project (values come from your Supabase/Neo4j/Pinecone/Gemini accounts). Use `skincareconsultant/.env.example` as the source of truth:
-
-- `NEXT_PUBLIC_USE_MOCK` (optional; use real services with `false`)
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `NEO4J_URI`
-- `NEO4J_USER`
-- `NEO4J_PASSWORD`
-- `PINECONE_API_KEY`
-- `PINECONE_INDEX_HOST` (or `PINECONE_HOST`)
-- `GEMINI_API_KEY`
-
 ---
 
 ## Core features
@@ -93,32 +79,38 @@ Set these in your Vercel project (values come from your Supabase/Neo4j/Pinecone/
     - Optional `routine` (AM/PM arrays of steps with `productId` and `product` name/brand).
     - Optional `queryType` (`ingredient` | `product` | `routine`) to bias RAG filters.
   - **Routine-aware answering**
-    - The chat UI requires selecting which routine you want answers for (defaulting to today’s scheduled routine based on calendar overrides).
-    - The selected routine snapshot is sent to `POST /api/chat`, so the Neo4j “routine knowledge” context always matches the routine you’re asking about.
+    - The chat UI sends the *selected* routine snapshot to `POST /api/chat` (defaulting to the routine scheduled for today), so Neo4j “routine knowledge” context always matches what the user wants answers for.
   - **RAG (Pinecone + Gemini)**:
     - Embeds the message with Gemini (`embedTexts`).
     - Queries Pinecone with:
       - `topK` and `includeMetadata: true`.
       - A filter built from `queryType` to restrict `RagMetadata.type` to relevant doc types.
     - Optionally runs a second RAG query focused on the routine’s products and merges results, deduping by id.
+    - On cache misses, Pinecone retrieval is run in parallel with Neo4j knowledge-context generation to reduce end-to-end latency.
   - **Neo4j knowledge graph context**:
     - When a routine is provided, extracts product ids and calls `getRoutineKnowledgeContext`, which uses Neo4j conflicts/helps for those ingredients.
     - This context is appended to the system prompt, grounding responses in actual routine data.
-  - **Context caching**:
-    - Two small in-memory TTL caches to minimize latency:
-      - **Pinecone RAG context cache**: keyed by normalized message + routine hash.
-      - **Neo4j knowledge-context cache**: keyed by routine hash only.
-    - TTL-based expiration to keep memory bounded (caches are per server instance).
+  - **Context caching (two layers)**:
+    - **Pinecone RAG context cache**: keyed by normalized message + routine hash.
+    - **Neo4j knowledge-context cache**: keyed by routine hash only.
+    - Both caches use TTL-based expiration so memory stays bounded (caches are per server instance).
   - **Prompting**:
     - System prompt describes the assistant as a skincare consultant with:
       - Clear safety constraints (no diagnosis/treatment, must recommend patch testing).
       - Instructions to use RAG + knowledge-graph context + routine information.
+    - Retrieved RAG context is trimmed to keep Gemini completions fast (currently capped to an ~8k character slice).
   - **Error handling**:
     - Detailed logging server-side; safe, succinct error messages returned to the client for debugging misconfigurations (e.g. missing API keys) without leaking sensitive internals.
 
 **How RAG + the knowledge graph work together**
 
 Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pinecone + Gemini) and a **structural knowledge layer** (Neo4j graph) and merges both into every chat and compatibility decision. The RAG layer is fed with curated chunks about ingredients, products, and best‑practice guidance; each chunk carries rich `RagMetadata` (type, name, text, brand, concern tags). When a user asks a question, the system embeds the query with Gemini, retrieves the most relevant chunks from Pinecone (optionally running a second pass focused on the user’s actual routine products), and formats them into readable context blocks. In parallel, the Neo4j graph is queried for concrete relationships between the ingredients in the user’s routine and the products they ask about — conflicts are pulled from `CONFLICTS_WITH` edges and synergies from `HELPS` edges. The final prompt that goes to Gemini is therefore backed by **both**: high‑recall semantic context from RAG and high‑precision, schema‑level relationships from the graph. This design makes the assistant feel knowledgeable and specific (it can talk about real ingredient interactions in the user’s routine), while still being explainable and auditable: every answer can be traced back to a combination of retrieved documents and explicit graph edges instead of opaque, purely generative guesses.
+
+### Instant Access (bootstrap consolidation)
+
+- **Routine page**: `GET /api/routine-bootstrap` consolidates initial routine loading (routine + health + insights + schedule events) into a single faster request.
+- **Calendar page**: `GET /api/routine-calendar-bootstrap` loads saved routines, the computed default routine id, and per-day overrides in one response.
+- **Ingredients page**: `GET /api/routine-ingredient-ids` returns normalized routine ingredient ids in one call (avoiding N+1 product/INCI lookups).
 
 ### Routine calendar and scheduling
 
@@ -201,20 +193,6 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
 
 ---
 
-## Engineering highlights & optimizations
-
-- **Dual-layer intelligence (RAG + graph)**: Chat and compatibility combine a semantic RAG layer (Pinecone + Gemini) with a structural Neo4j graph. This lets the system talk about real ingredient interactions in the user’s routine with explanations that can be traced back to both retrieved documents and graph edges.
-- **Safety‑first compatibility**: Avoid‑list and graph conflicts always drive the primary verdict and score; RAG goalAlignment is layered on as a soft signal and never overrides safety rules.
-- **Chat latency performance**: Two small in‑memory TTL caches reduce repeated work:
-  - Pinecone RAG context (keyed by normalized message + routine hash).
-  - Neo4j knowledge-context (keyed by routine hash).
-  Two-stage retrieval (query, then optional routine-focused query) and parallel fetching are used on cache misses to overlap compute/network time.
-- **Lean schedule persistence**: Per‑day routine assignments are stored as a JSONB map (`schedule_overrides`) on the profile. This keeps the schema simple while making the interactive calendar fully persistent.
-- **JSONB routines**: Routines are stored as JSONB AM/PM arrays so the step model can evolve without schema churn, while still being strongly typed in TypeScript.
-- **Testing and CI hooks**: Husky enforces ESLint with `--max-warnings 0`, `tsc --noEmit`, and Vitest on push. Core utilities (`inci-resolver`, `routine-schedule`, `history-export`), API routes, and key pages all have tests.
-
----
-
 ## Stack and architecture
 
 - **Frontend**
@@ -228,6 +206,10 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
   - RESTful endpoints under `skincareconsultant/app/api`:
     - Profile: `/api/profile`.
     - Routine CRUD: `/api/routine`, `/api/routines`, `/api/routine/current`, `/api/routine-health`, `/api/routine-insights`.
+    - Bootstrap consolidation:
+      - `/api/routine-bootstrap`
+      - `/api/routine-calendar-bootstrap`
+      - `/api/routine-ingredient-ids`
     - Compatibility: `/api/compatibility`.
     - Chat / RAG: `/api/chat`.
     - Knowledge graph snapshot: `/api/graph`.
@@ -253,7 +235,7 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
 - **scripts/combine-datasets/** — Pipeline to combine Kaggle datasets into products + graph + RAG JSON. See [scripts/combine-datasets/README.md](scripts/combine-datasets/README.md).
 - **scripts/migrations/** — SQL migrations for Supabase tables (e.g. `add-schedule-overrides.sql`).
 - **.husky/** — Git hooks (lint + typecheck on commit, tests on push).
-- **docs/** — `PRD.md` (product/architecture spec) and `BACKEND_SETUP.md` (backend setup guide).
+- **docs/** — [INTEGRATE_V0.md](docs/INTEGRATE_V0.md) and other developer docs.
 
 ---
 
@@ -265,7 +247,7 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
 | `npm run build`                | Next.js build                     |
 | `npm run start`                | Next.js production                |
 | `npm run lint`                 | ESLint (Next + core-web-vitals)  |
-| `npm run typecheck`            | `tsc --NoEmit`                    |
+| `npm run typecheck`            | `tsc --noEmit`                    |
 | `npm run test`                 | Vitest                            |
 | `npm run combine-datasets`     | Download Kaggle data and build products + graph |
 | `npm run combine-datasets:dry-run` | Run pipeline without writing files |
@@ -282,3 +264,5 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
     - Supabase-ready product JSON.
     - Neo4j graph (nodes/edges/Cypher).
     - RAG chunks with `RagMetadata` for Pinecone.
+
+---
