@@ -157,7 +157,7 @@ The system is explicitly **not** medical advice. All features are designed to pr
     - Avoids repeated embedding + RAG calls for repeated questions.
   - Sends this prompt and the user message to Gemini to produce a reply.
 
-**Why this is impressive (for hiring managers):**  
+**Why this is impressive:**  
 The chat system is not a naive “LLM in front of a database”. It merges a **semantic retrieval layer** (Pinecone + Gemini embeddings) and a **structural knowledge layer** (Neo4j graph of ingredients and concerns). This means answers are grounded in:
 
 - Retrievable documentation and product/ingredient snippets (RAG).
@@ -342,5 +342,5 @@ For full, non‑mock functionality, a user setting up the project must:
   - Warn about potential conflicts and high exfoliation/retinoid loads.
   - Provide explainable rationales for scores and recommendations.
 
-This PRD is intended as a high‑level, implementation‑aware design document for maintainers, reviewers, and hiring managers. For day‑to‑day setup steps, see `docs/BACKEND_SETUP.md`; for a quick overview of features and technologies, see the root `README.md`.
+This PRD is intended as a high‑level, implementation‑aware design document for maintainers, and reviewers. For day‑to‑day setup steps, see `docs/BACKEND_SETUP.md`; for a quick overview of features and technologies, see the root `README.md`.
 
