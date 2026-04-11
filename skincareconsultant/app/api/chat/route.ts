@@ -14,8 +14,8 @@ import type { RagMetadata } from "@/lib/rag-types"
 const TOP_K = 8
 const ROUTINE_RAG_TOP_K = 5
 const CACHE_TTL_MS = 5 * 60 * 1000
-const SYSTEM_PREFIX = `You are a skincare consultant. Answer using the retrieved RAG context, the knowledge-graph context (conflicts/helps for the user's ingredients), and the user's routine.
-Give specific, actionable suggestions about the products and ingredients in their routine. Do not diagnose or treat; educational and guidance only. Recommend patch testing.`
+const SYSTEM_PREFIX = `You are SkinSafe, a skincare guidance assistant. Answer using the retrieved RAG context, the knowledge-graph context (conflicts/helps for the user's ingredients), and the user's routine.
+Be concise by default: about 2–4 short paragraphs or a few tight bullet lists unless the user explicitly asks for depth. Avoid repeating the same point. Do not diagnose or treat; educational and guidance only. Recommend patch testing.`
 
 type RoutineForPrompt = {
   am: Array<{ label?: string; productId?: string; product?: { name: string; brand: string } }>
@@ -94,6 +94,59 @@ function setCachedKnowledgeContext(key: string, context: string): void {
   knowledgeContextCache.set(key, { createdAt: Date.now(), context })
 }
 
+const SEMANTIC_SIM_THRESHOLD = 0.92
+const SEMANTIC_MAX_PER_META = 16
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length === 0 || b.length === 0 || a.length !== b.length) return 0
+  let dot = 0
+  let na = 0
+  let nb = 0
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i]
+    na += a[i] * a[i]
+    nb += b[i] * b[i]
+  }
+  const denom = Math.sqrt(na) * Math.sqrt(nb)
+  return denom === 0 ? 0 : dot / denom
+}
+
+type SemanticRagEntry = { embedding: number[]; context: string; createdAt: number }
+const semanticRagByMeta = new Map<string, SemanticRagEntry[]>()
+
+function semanticMetaKey(queryType: string | undefined, routine: RoutineForPrompt | null): string {
+  const qt =
+    queryType === "ingredient" || queryType === "product" || queryType === "routine" ? queryType : "default"
+  return `${qt}::${makeRoutineHash(routine)}`
+}
+
+function takeSemanticRagContext(metaKey: string, embedding: number[]): string | null {
+  const list = semanticRagByMeta.get(metaKey)
+  if (!list?.length) return null
+  const now = Date.now()
+  const fresh = list.filter((e) => now - e.createdAt <= CACHE_TTL_MS)
+  if (fresh.length !== list.length) semanticRagByMeta.set(metaKey, fresh)
+  let bestScore = SEMANTIC_SIM_THRESHOLD
+  let bestCtx: string | null = null
+  for (const e of fresh) {
+    const s = cosineSimilarity(embedding, e.embedding)
+    if (s >= bestScore) {
+      bestScore = s
+      bestCtx = e.context
+    }
+  }
+  return bestCtx
+}
+
+function recordSemanticRag(metaKey: string, embedding: number[], context: string): void {
+  if (!context.trim()) return
+  const now = Date.now()
+  const prev = (semanticRagByMeta.get(metaKey) ?? []).filter((e) => now - e.createdAt <= CACHE_TTL_MS)
+  prev.push({ embedding: [...embedding], context, createdAt: now })
+  while (prev.length > SEMANTIC_MAX_PER_META) prev.shift()
+  semanticRagByMeta.set(metaKey, prev)
+}
+
 function getPineconeFilter(queryType?: string): Record<string, unknown> | undefined {
   switch (queryType) {
     case "ingredient":
@@ -139,6 +192,9 @@ export async function POST(request: Request) {
     const cachedKnowledgeContext = knowledgeCacheKey ? getCachedKnowledgeContext(knowledgeCacheKey) : null
 
     const cachedContext = getCachedContext(cacheKey)
+    const queryTypeRaw = typeof body.queryType === "string" ? body.queryType : undefined
+    const pineconeFilter = getPineconeFilter(queryTypeRaw)
+    const semanticKey = semanticMetaKey(queryTypeRaw, routine)
 
     const pineconePromise: Promise<string> = cachedContext !== null
       ? Promise.resolve(cachedContext)
@@ -147,18 +203,28 @@ export async function POST(request: Request) {
           const [embedding] = await embedTexts([message])
           const t1 = enableTiming ? Date.now() : 0
 
+          const semanticHit = takeSemanticRagContext(semanticKey, embedding)
+          if (semanticHit) {
+            setCachedContext(cacheKey, semanticHit)
+            if (enableTiming) {
+              console.log("[chat] pinecone", {
+                embedMs: t1 - t0,
+                semanticReuse: true,
+                builtContextChars: semanticHit.length,
+              })
+            }
+            return semanticHit
+          }
+
           const pc = getPineconeClient()
           const host = getPineconeIndexHost()
           const index = pc.index({ host })
-          const filter = getPineconeFilter(
-            typeof body.queryType === "string" ? body.queryType : undefined,
-          )
 
           const queryResult = await index.query({
             vector: embedding,
             topK: TOP_K,
             includeMetadata: true,
-            ...(filter ? { filter } : {}),
+            ...(pineconeFilter ? { filter: pineconeFilter } : {}),
           })
           const t2 = enableTiming ? Date.now() : 0
 
@@ -179,7 +245,7 @@ export async function POST(request: Request) {
                 vector: routineEmbedding,
                 topK: ROUTINE_RAG_TOP_K,
                 includeMetadata: true,
-                ...(filter ? { filter } : {}),
+                ...(pineconeFilter ? { filter: pineconeFilter } : {}),
               })
               const routineMatches =
                 (routineResult as { matches?: Array<{ id?: string; metadata?: RagMetadata }> }).matches ?? []
@@ -206,16 +272,17 @@ export async function POST(request: Request) {
             .filter((s) => s.length > 0)
             .join("\n\n")
 
-          // Only cache non-empty to preserve previous behavior + test assumptions.
           if (builtContext) {
             setCachedContext(cacheKey, builtContext)
+            recordSemanticRag(semanticKey, embedding, builtContext)
           }
 
           if (enableTiming) {
             console.log("[chat] pinecone", {
               embedMs: t1 - t0,
               queryMs: t2 - t1,
-              contextCached: cachedContext !== null,
+              exactContextCached: false,
+              semanticReuse: false,
               builtContextChars: builtContext.length,
             })
           }
@@ -252,7 +319,7 @@ export async function POST(request: Request) {
         ? `\n\nRetrieved RAG context:\n${context.slice(0, 8000)}`
         : "\n\nNo specific RAG context was retrieved; use the knowledge-graph and routine above, and general skincare knowledge.",
     ].join("")
-    const reply = await generateChatReply(systemPrompt, message)
+    const reply = await generateChatReply(systemPrompt, message, { maxOutputTokens: 2048 })
 
     if (enableTiming) {
       console.log("[chat] totalMs", { total: Date.now() - requestStart })

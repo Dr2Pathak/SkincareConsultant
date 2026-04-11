@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { Maximize2, Minimize2 } from "lucide-react"
 import { ChatMessageBubble, ChatInput } from "@/components/chat/chat-message"
-import { Disclaimer } from "@/components/disclaimer"
+import { Button } from "@/components/ui/button"
 import { useAuth } from "@/components/auth/auth-provider"
 import { loadChatHistory, saveChatHistory, WELCOME_MESSAGE } from "@/lib/chat-storage"
 import { sendChatMessage, getRoutineCalendarBootstrap } from "@/lib/data"
@@ -12,11 +13,14 @@ import { mockRoutine } from "@/lib/mock-data"
 import type { ChatMessage } from "@/lib/types"
 import type { SavedRoutineSummary } from "@/lib/types"
 
+const CHAT_EXPANDED_KEY = "skincare_chat_expanded"
+
 export default function ChatPage() {
   const { user } = useAuth()
   const [messages, setMessages] = useState<ChatMessage[]>(() => [WELCOME_MESSAGE])
   const [inputValue, setInputValue] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
   const [savedRoutines, setSavedRoutines] = useState<SavedRoutineSummary[]>(
     USE_MOCK
       ? [
@@ -39,6 +43,23 @@ export default function ChatPage() {
     USE_MOCK ? { am: mockRoutine.am, pm: mockRoutine.pm } : null,
   )
   const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    try {
+      setIsExpanded(localStorage.getItem(CHAT_EXPANDED_KEY) === "1")
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  const setExpandedPersist = useCallback((next: boolean) => {
+    setIsExpanded(next)
+    try {
+      localStorage.setItem(CHAT_EXPANDED_KEY, next ? "1" : "0")
+    } catch {
+      /* ignore */
+    }
+  }, [])
 
   useEffect(() => {
     const stored = loadChatHistory(user?.id)
@@ -135,18 +156,45 @@ export default function ChatPage() {
     }
   }
 
+  const shellClass = isExpanded
+    ? "fixed inset-0 z-[60] flex flex-col bg-background"
+    : "flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 lg:px-8"
+
   return (
-    <div className="flex h-[calc(100vh-8rem)] flex-col px-4 py-4 sm:px-6 lg:px-8">
-      <div className="mx-auto w-full max-w-3xl flex flex-col flex-1 min-h-0">
-        <div className="mb-4">
-          <h1 className="text-2xl font-bold text-foreground">Skincare Consultant</h1>
-          <p className="text-sm text-muted-foreground">
-            Ask me about ingredients, routine advice, and product recommendations.
-          </p>
+    <div className={shellClass}>
+      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+        <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold text-foreground">SkinSafe</h1>
+            <p className="text-sm text-muted-foreground">
+              Ask me about ingredients, routine advice, and product recommendations.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 gap-1.5"
+            onClick={() => setExpandedPersist(!isExpanded)}
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? "Exit expanded chat" : "Expand chat"}
+          >
+            {isExpanded ? (
+              <>
+                <Minimize2 className="h-4 w-4" aria-hidden />
+                Shrink
+              </>
+            ) : (
+              <>
+                <Maximize2 className="h-4 w-4" aria-hidden />
+                Expand
+              </>
+            )}
+          </Button>
         </div>
 
         {/* Routine to answer for */}
-        <div className="mb-4 rounded-xl border border-border bg-card p-3 sm:p-4">
+        <div className="mb-4 shrink-0 rounded-xl border border-border bg-card p-3 sm:p-4">
           <label htmlFor="chat-routine" className="block text-sm font-medium text-foreground">
             Routine to answer for
           </label>
@@ -173,22 +221,30 @@ export default function ChatPage() {
                 </option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">
-              Defaults to your scheduled routine for today.
-            </p>
+            <p className="text-xs text-muted-foreground">Defaults to your scheduled routine for today.</p>
           </div>
 
           {loadingRoutines && <p className="mt-2 text-xs text-muted-foreground">Loading routines…</p>}
 
           {user && !loadingRoutines && savedRoutines.length === 0 && (
             <p className="mt-2 text-xs text-muted-foreground">
-              Create a routine first in <a href="/routine" className="underline hover:text-foreground">the routine builder</a>.
+              Create a routine first in{" "}
+              <a href="/routine" className="underline hover:text-foreground">
+                the routine builder
+              </a>
+              .
             </p>
           )}
         </div>
 
-        {/* Messages Area - ref on scroll container so scroll-to-bottom works */}
-        <div ref={scrollRef} className="flex-1 overflow-auto pr-4 min-h-0">
+        <p id="chat-input-hint" className="sr-only">
+          For educational and guidance purposes only—not medical advice. Patch test new products.
+        </p>
+
+        <div
+          ref={scrollRef}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain scroll-smooth"
+        >
           <div className="space-y-4 pb-4">
             {messages.map((message) => (
               <ChatMessageBubble key={message.id} message={message} />
@@ -196,9 +252,9 @@ export default function ChatPage() {
             {isLoading && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <div className="flex gap-1">
-                  <span className="animate-bounce delay-0 h-2 w-2 rounded-full bg-primary" />
-                  <span className="animate-bounce delay-150 h-2 w-2 rounded-full bg-primary" />
-                  <span className="animate-bounce delay-300 h-2 w-2 rounded-full bg-primary" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-primary delay-0" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-primary delay-150" />
+                  <span className="h-2 w-2 animate-bounce rounded-full bg-primary delay-300" />
                 </div>
                 <span>Thinking...</span>
               </div>
@@ -206,18 +262,15 @@ export default function ChatPage() {
           </div>
         </div>
 
-        {/* Input Area */}
-        <div className="border-t border-border pt-4 mt-4 space-y-3">
+        <div className="mt-4 shrink-0 space-y-3 border-t border-border pt-4">
           <ChatInput
             value={inputValue}
             onChange={setInputValue}
             onSubmit={handleSend}
             placeholder="Ask about ingredients, routine tips, or product advice..."
             disabled={isLoading || !user || !routineSnapshot || loadingRoutines}
+            ariaDescribedBy="chat-input-hint"
           />
-          <Disclaimer className="text-xs">
-            Results are for guidance only and do not replace professional dermatological advice.
-          </Disclaimer>
         </div>
       </div>
     </div>

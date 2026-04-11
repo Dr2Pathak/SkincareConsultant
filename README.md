@@ -1,4 +1,4 @@
-# Skincare Consultant
+# SkinSafe
 
 Routine-centric skincare compatibility and guidance web app. The app combines:
 
@@ -90,21 +90,24 @@ Open `http://localhost:3000`. Pre-commit runs lint + typecheck; pre-push runs te
   - **Neo4j knowledge graph context**:
     - When a routine is provided, extracts product ids and calls `getRoutineKnowledgeContext`, which uses Neo4j conflicts/helps for those ingredients.
     - This context is appended to the system prompt, grounding responses in actual routine data.
-  - **Context caching (two layers)**:
-    - **Pinecone RAG context cache**: keyed by normalized message + routine hash.
+  - **Context caching (three layers for RAG path)**:
+    - **Exact-match Pinecone context cache**: keyed by normalized user message + routine hash.
+    - **Semantic similarity cache (second tier)**: after embedding the user message, if cosine similarity to a recent cache entry (same `queryType` + routine hash) exceeds a threshold, the server **reuses the previously retrieved Pinecone context** and skips a redundant vector query. The final reply is still generated fresh by Gemini. Entries use TTL and a max size (LRU-style cap); on serverless, caches are per instance and cold after deploys.
     - **Neo4j knowledge-context cache**: keyed by routine hash only.
-    - Both caches use TTL-based expiration so memory stays bounded (caches are per server instance).
-  - **Prompting**:
-    - System prompt describes the assistant as a skincare consultant with:
+    - All use TTL-based expiration so memory stays bounded.
+  - **Prompting and generation budget**:
+    - System prompt positions **SkinSafe** as a skincare guidance assistant with:
       - Clear safety constraints (no diagnosis/treatment, must recommend patch testing).
+      - Instructions to stay concise by default (short paragraphs or tight bullets unless the user asks for depth).
       - Instructions to use RAG + knowledge-graph context + routine information.
-    - Retrieved RAG context is trimmed to keep Gemini completions fast (currently capped to an ~8k character slice).
+    - Chat completions use Gemini with **`maxOutputTokens: 2048`** (see `lib/gemini.ts` and `POST /api/chat`) so answers are not cut off mid-sentence while still bounding cost.
+    - Retrieved RAG context is trimmed to keep prompts manageable (currently capped to an ~8k character slice).
   - **Error handling**:
     - Detailed logging server-side; safe, succinct error messages returned to the client for debugging misconfigurations (e.g. missing API keys) without leaking sensitive internals.
 
 **How RAG + the knowledge graph work together**
 
-Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pinecone + Gemini) and a **structural knowledge layer** (Neo4j graph) and merges both into every chat and compatibility decision. The RAG layer is fed with curated chunks about ingredients, products, and best‑practice guidance; each chunk carries rich `RagMetadata` (type, name, text, brand, concern tags). When a user asks a question, the system embeds the query with Gemini, retrieves the most relevant chunks from Pinecone (optionally running a second pass focused on the user’s actual routine products), and formats them into readable context blocks. In parallel, the Neo4j graph is queried for concrete relationships between the ingredients in the user’s routine and the products they ask about — conflicts are pulled from `CONFLICTS_WITH` edges and synergies from `HELPS` edges. The final prompt that goes to Gemini is therefore backed by **both**: high‑recall semantic context from RAG and high‑precision, schema‑level relationships from the graph. This design makes the assistant feel knowledgeable and specific (it can talk about real ingredient interactions in the user’s routine), while still being explainable and auditable: every answer can be traced back to a combination of retrieved documents and explicit graph edges instead of opaque, purely generative guesses.
+Under the hood, SkinSafe maintains a **semantic knowledge layer** (Pinecone + Gemini) and a **structural knowledge layer** (Neo4j graph) and merges both into every chat and compatibility decision. The RAG layer is fed with curated chunks about ingredients, products, and best‑practice guidance; each chunk carries rich `RagMetadata` (type, name, text, brand, concern tags). When a user asks a question, the system embeds the query with Gemini, retrieves the most relevant chunks from Pinecone (optionally running a second pass focused on the user’s actual routine products), and formats them into readable context blocks. In parallel, the Neo4j graph is queried for concrete relationships between the ingredients in the user’s routine and the products they ask about — conflicts are pulled from `CONFLICTS_WITH` edges and synergies from `HELPS` edges. The final prompt that goes to Gemini is therefore backed by **both**: high‑recall semantic context from RAG and high‑precision, schema‑level relationships from the graph. This design makes the assistant feel knowledgeable and specific (it can talk about real ingredient interactions in the user’s routine), while still being explainable and auditable: every answer can be traced back to a combination of retrieved documents and explicit graph edges instead of opaque, purely generative guesses.
 
 ### Instant Access (bootstrap consolidation)
 
@@ -165,6 +168,14 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
       - Smooth dark-mode support via `ThemeProvider`.
     - `Suggest schedule (beta)` button clearly labeled and non-destructive.
 
+- **Google Calendar sync (natural language, optional)**  
+  This is **not** Gemini “function calling” into Google. After the user connects via **OAuth 2.0**, the server calls the **Google Calendar API** directly.
+  - **OAuth**: `GET /api/calendar/google/oauth/start` → Google consent → `GET /api/calendar/google/oauth/callback`; refresh token stored on `profiles` (see `scripts/migrations/add-google-calendar-profile.sql` and [docs/BACKEND_SETUP.md](docs/BACKEND_SETUP.md)).
+  - **Tree-of-Thoughts interpretation** (`lib/calendar-ai-tot.ts`): two Gemini JSON phases — (1) propose 2–3 candidate interpretations of the user’s text (date range, AM/PM scope, routine); (2) score and validate branches against machine-checkable rules (routine exists, horizon limits, prefs). No arbitrary event times are invented by the model.
+  - **Materialization**: the winning branch is converted to `RoutineScheduleEvent[]` via **`lib/calendar-buckets.ts`**, the same helper the calendar UI uses, so AI sync and the grid stay aligned.
+  - **Execution**: `POST /api/calendar/google/sync` maps those events to `events.insert` with idempotent `extendedProperties.private.skincareconsultantEventId` (`lib/google-calendar-insert.ts`).
+  - **Env**: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, optional `GOOGLE_OAUTH_REDIRECT_URI`, `NEXT_PUBLIC_SITE_URL`, plus `GEMINI_API_KEY` for the ToT steps.
+
 ### Exports
 
 - **Calendar export to `.ics`** (`POST /api/routine-schedule/ics`)
@@ -214,11 +225,12 @@ Under the hood, Skincare Consultant maintains a **semantic knowledge layer** (Pi
     - Chat / RAG: `/api/chat`.
     - Knowledge graph snapshot: `/api/graph`.
     - Calendar: `/api/routine-schedule/preview`, `/api/routine-schedule/ics`, `/api/schedule-overrides`.
+    - Google Calendar: `/api/calendar/google/oauth/start`, `/api/calendar/google/oauth/callback`, `/api/calendar/google/status`, `/api/calendar/google/sync`.
     - Exports: `/api/export/history`.
 
 - **Data stores**
   - **Supabase Postgres**:
-    - `profiles(id, skin_types, concerns, avoid_list, tolerance, schedule_overrides, updated_at)`.
+    - `profiles(id, skin_types, concerns, avoid_list, tolerance, schedule_overrides, google_calendar_refresh_token?, calendar_time_zone?, updated_at)`.
     - `routines(id, user_id, am, pm, is_current, updated_at)`.
     - `products(id, name, brand, inci_list, category, description, updated_at)`.
   - **Neo4j**:

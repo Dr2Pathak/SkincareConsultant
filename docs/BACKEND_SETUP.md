@@ -56,6 +56,35 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 These are your credentials. They are not committed to the repo, and they control exactly which Supabase project the app uses.
 
+### 1.5 Optional SQL migrations (Google Calendar + onboarding search)
+
+Run these in **Supabase → SQL Editor** when you want the related features:
+
+| File | Purpose |
+|------|---------|
+| `scripts/migrations/add-google-calendar-profile.sql` | Adds `google_calendar_refresh_token`, `calendar_time_zone`, etc. on `profiles` for Google Calendar sync. |
+| `scripts/migrations/ingredient-suggest-rpc.sql` | Creates `ingredient_suggest` RPC for avoid-list autocomplete from product `inci_list` values. |
+
+### 1.6 Google Calendar (optional)
+
+Used by **Routine calendar → Google Calendar (AI)**. Requires **Gemini** (`GEMINI_API_KEY`) for Tree-of-Thoughts interpretation and Google OAuth credentials.
+
+1. Run `scripts/migrations/add-google-calendar-profile.sql`.
+2. In [Google Cloud Console](https://console.cloud.google.com), enable **Google Calendar API**, create **OAuth 2.0 Client ID** (Web application), and add **Authorized redirect URIs**:
+   - `http://localhost:3000/api/calendar/google/oauth/callback` (adjust port if needed)
+   - `https://your-production-domain/api/calendar/google/oauth/callback`
+3. Set in `skincareconsultant/.env.local`:
+
+```env
+GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+NEXT_PUBLIC_SITE_URL=https://your-production-domain
+```
+
+Optional: `GOOGLE_OAUTH_REDIRECT_URI` if you cannot use `NEXT_PUBLIC_SITE_URL` to build the callback URL.
+
+Refresh tokens are stored **only** in `profiles` on the server; never expose them to the client.
+
 ---
 
 ## 2. Neo4j (knowledge graph)

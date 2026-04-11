@@ -10,7 +10,7 @@ export function Footer() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
               <Droplets className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
             </div>
-            <span className="text-lg font-semibold text-foreground">SkinCare Consultant</span>
+            <span className="text-lg font-semibold text-foreground">SkinSafe</span>
           </div>
 
           <nav className="flex flex-wrap items-center justify-center gap-4 text-sm" aria-label="Footer navigation">

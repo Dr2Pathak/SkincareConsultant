@@ -30,7 +30,7 @@ const features = [
   },
   {
     icon: MessageCircle,
-    title: "Chat with Your Consultant",
+    title: "Chat with SkinSafe",
     description:
       "Ask questions about ingredients, get routine advice, and learn what works for your skin.",
     href: "/chat",
@@ -71,7 +71,7 @@ export default function HomePage() {
       <section className="relative overflow-hidden bg-gradient-to-b from-background to-muted/50 px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
           <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
-            Your Personal Skincare Consultant
+            SkinSafe
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg text-muted-foreground sm:text-xl leading-relaxed">
             Check product compatibility, build smarter routines, and understand your ingredients.

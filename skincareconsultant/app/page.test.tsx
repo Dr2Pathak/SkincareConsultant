@@ -5,7 +5,7 @@ import HomePage from "./page";
 describe("Home", () => {
   it("renders landing heading and value prop", () => {
     render(<HomePage />);
-    expect(screen.getByRole("heading", { name: /personal skincare consultant/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^SkinSafe$/i })).toBeInTheDocument();
     const match = screen.getAllByText(/compatibility|routine|ingredients/i);
     expect(match.length).toBeGreaterThan(0);
   });

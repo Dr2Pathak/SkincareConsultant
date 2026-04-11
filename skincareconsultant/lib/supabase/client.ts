@@ -1,25 +1,31 @@
 /**
- * Supabase browser client (anon key). Safe for client-side.
- * Only creates client when env is set (e.g. build may run without env).
+ * Supabase browser client (anon key). Uses @supabase/ssr so the session is stored in cookies
+ * and visible to middleware for route protection.
  */
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js"
+import { createBrowserClient } from "@supabase/ssr"
+import type { SupabaseClient } from "@supabase/supabase-js"
 
-let _client: SupabaseClient | null = null
-
-function getClient(): SupabaseClient {
-  if (_client) return _client
+function createClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   if (typeof url !== "string" || !url || typeof anonKey !== "string" || !anonKey) {
     throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY")
   }
-  _client = createClient(url, anonKey)
+  return createBrowserClient(url, anonKey)
+}
+
+let _client: SupabaseClient | null = null
+
+function getClient(): SupabaseClient {
+  if (!_client) _client = createClient()
   return _client
 }
 
 export const supabase = new Proxy({} as SupabaseClient, {
-  get(_, prop) {
-    return getClient()[prop as keyof SupabaseClient]
+  get(_, prop: string | symbol) {
+    const client = getClient()
+    const value = Reflect.get(client, prop, client)
+    return typeof value === "function" ? (value as (...args: unknown[]) => unknown).bind(client) : value
   },
 })

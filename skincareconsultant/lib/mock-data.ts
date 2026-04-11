@@ -270,7 +270,7 @@ export const mockChatMessages: ChatMessage[] = [
     id: "1",
     role: "assistant",
     content:
-      "Hi! I'm your skincare consultant. I can help you understand your routine, check product compatibility, and answer questions about ingredients. How can I help you today?",
+      "Hi! I'm SkinSafe. I can help you understand your routine, check product compatibility, and answer questions about ingredients. How can I help you today?",
     timestamp: new Date(Date.now() - 3600000),
   },
   {

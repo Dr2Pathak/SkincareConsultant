@@ -67,6 +67,6 @@ export const WELCOME_MESSAGE: ChatMessage = {
   id: "welcome",
   role: "assistant",
   content:
-    "Hi! I'm your skincare consultant. I can help you understand your routine, check product compatibility, and answer questions about ingredients. How can I help you today?",
+    "Hi! I'm SkinSafe. I can help you understand your routine, check product compatibility, and answer questions about ingredients. How can I help you today?\n\nFor educational and guidance purposes only—not a substitute for professional medical or dermatological advice. Patch test new products.",
   timestamp: new Date(),
 }

@@ -77,6 +77,8 @@ interface ChatInputProps {
   placeholder?: string
   disabled?: boolean
   className?: string
+  /** Optional element id for aria-describedby (e.g. sr-only disclaimer). */
+  ariaDescribedBy?: string
 }
 
 export function ChatInput({
@@ -86,6 +88,7 @@ export function ChatInput({
   placeholder = "Type your message...",
   disabled = false,
   className,
+  ariaDescribedBy,
 }: ChatInputProps) {
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -105,6 +108,7 @@ export function ChatInput({
         rows={1}
         className="flex-1 resize-none rounded-xl border border-input bg-background px-4 py-3 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         aria-label="Message input"
+        aria-describedby={ariaDescribedBy}
       />
       <button
         type="button"

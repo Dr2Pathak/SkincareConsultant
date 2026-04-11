@@ -1,11 +1,16 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/components/auth/auth-provider"
+
+function safeRedirectPath(raw: string | null): string {
+  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/routine"
+  return raw
+}
 
 export default function LoginPage() {
   const router = useRouter()
@@ -15,6 +20,12 @@ export default function LoginPage() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [afterLoginPath, setAfterLoginPath] = useState("/routine")
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    setAfterLoginPath(safeRedirectPath(params.get("redirect")))
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -28,7 +39,7 @@ export default function LoginPage() {
         setError(err)
         return
       }
-      router.push("/routine")
+      router.push(afterLoginPath)
       router.refresh()
     } finally {
       setSubmitting(false)

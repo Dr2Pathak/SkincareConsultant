@@ -33,13 +33,42 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
   return embeddings.map((e) => (e.values as number[]) ?? [])
 }
 
+const DEFAULT_CHAT_MAX_OUTPUT_TOKENS = 2048
+
+export type GenerateChatReplyOptions = {
+  maxOutputTokens?: number
+}
+
 /** Generate chat completion with system + user message. Uses Gemini 2.5 Flash (2.0 Flash is deprecated). */
-export async function generateChatReply(systemPrompt: string, userMessage: string): Promise<string> {
+export async function generateChatReply(
+  systemPrompt: string,
+  userMessage: string,
+  options?: GenerateChatReplyOptions,
+): Promise<string> {
+  const ai = getGemini()
+  const maxOutputTokens = options?.maxOutputTokens ?? DEFAULT_CHAT_MAX_OUTPUT_TOKENS
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    config: { maxOutputTokens },
+    contents: [
+      { role: "user", parts: [{ text: `${systemPrompt}\n\nUser: ${userMessage}` }] },
+    ],
+  })
+  const text = response.text
+  return typeof text === "string" ? text : (text ?? "").toString()
+}
+
+/** JSON-only completion for structured pipelines (e.g. calendar Tree-of-Thoughts). */
+export async function generateJsonText(systemInstruction: string, userText: string): Promise<string> {
   const ai = getGemini()
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash",
+    config: { responseMimeType: "application/json" },
     contents: [
-      { role: "user", parts: [{ text: `${systemPrompt}\n\nUser: ${userMessage}` }] },
+      {
+        role: "user",
+        parts: [{ text: `${systemInstruction.trim()}\n\n---\n\n${userText.trim()}` }],
+      },
     ],
   })
   const text = response.text

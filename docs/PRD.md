@@ -1,6 +1,6 @@
-# Skincare Consultant – Product Requirements Document (PRD)
+# SkinSafe – Product Requirements Document (PRD)
 
-**Skincare Consultant** is a routine‑centric skincare compatibility and guidance platform. It helps users:
+**SkinSafe** is a routine‑centric skincare compatibility and guidance platform. It helps users:
 
 - Build and manage multiple named AM/PM routines.
 - Check product compatibility against their skin profile and avoid list.
@@ -8,6 +8,7 @@
 - Get context‑aware answers from a **RAG (Pinecone + Gemini)** chat.
 - Visualize and schedule routines on a calendar with per‑day assignments.
 - Export schedules and history as standard files (ICS, CSV).
+- Optionally sync interpreted schedule windows to **Google Calendar** using OAuth and a **Tree-of-Thoughts** Gemini pipeline (see §1.5).
 
 The system is explicitly **not** medical advice. All features are designed to provide educational, explainable guidance and emphasize patch‑testing and caution rather than diagnosis or treatment.
 
@@ -148,14 +149,15 @@ The system is explicitly **not** medical advice. All features are designed to pr
 
 - **Prompt assembly and caching**
   - Builds a system prompt that includes:
-    - Safety instructions (education only, patch‑test reminder).
+    - Safety instructions (education only, patch‑test reminder); assistant is positioned as **SkinSafe**, a guidance-only helper.
     - Formatted view of the user’s routine (AM/PM steps).
     - Knowledge‑graph context (conflicts, helps).
     - RAG context assembled from Pinecone matches.
-  - Applies a small in‑memory cache keyed by:
-    - Normalized user message + hash of routine product ids.
-    - Avoids repeated embedding + RAG calls for repeated questions.
-  - Sends this prompt and the user message to Gemini to produce a reply.
+  - **Caching (in‑memory, per server instance)**:
+    - **Exact Pinecone context**: keyed by normalized user message + routine hash; skips re-querying Pinecone when the same question is asked again within the TTL.
+    - **Semantic RAG context (second tier)**: after the message is embedded, if cosine similarity to a recent stored embedding exceeds a threshold **and** the entry matches the same metadata bucket (`queryType` + routine hash), the server **reuses the prior Pinecone context string** and still runs a **new** Gemini completion (avoids duplicate vector search; reduces cost/latency). Bounded list size per bucket + TTL.
+    - **Neo4j knowledge context**: keyed by routine hash.
+  - Sends the assembled prompt and the user message to Gemini with a configurable **`maxOutputTokens`** (currently **2048** for chat) so replies are not truncated mid‑answer while bounding cost.
 
 **Why this is impressive:**  
 The chat system is not a naive “LLM in front of a database”. It merges a **semantic retrieval layer** (Pinecone + Gemini embeddings) and a **structural knowledge layer** (Neo4j graph of ingredients and concerns). This means answers are grounded in:
@@ -205,6 +207,17 @@ As a result, the assistant can reason about the user’s **actual routine** in a
 - **Exports**
   - ICS export via `/api/routine-schedule/ics`.
   - CSV export via `/api/export/history` and `lib/history-export`.
+
+- **Google Calendar integration (optional)**  
+  **Requirement:** User completes Google OAuth; refresh token stored server-side on `profiles`. This path uses the **Google Calendar REST API** from Next.js API routes — it is **not** implemented as Gemini “function calling” to Google.
+
+  - **UX**: On `/routine/calendar`, the user can describe what to add in natural language (e.g. “next two weeks AM and PM”) and connect Google if needed.
+  - **Tree-of-Thoughts (`lib/calendar-ai-tot.ts`)**:
+    - **Phase 1 — branch generation:** One Gemini call returns structured JSON with 2–3 candidate interpretations (date range, AM/PM scope, which routine).
+    - **Phase 2 — evaluation:** A second Gemini call scores/validates branches against machine-checkable constraints (routine exists, dates within horizon, scope vs prefs). Invalid or ambiguous sets yield a clarifying response **without** calling Google.
+    - **Phase 3 — materialization:** The chosen branch is turned into `RoutineScheduleEvent[]` via **`lib/calendar-buckets.ts`** (same logic as the calendar UI), so event times and labels are never hallucinated as arbitrary ISO timestamps.
+  - **Execution**: `POST /api/calendar/google/sync` maps events to Calendar `events.insert`, with idempotent client-side keys in `extendedProperties.private` for safe retries.
+  - **Configuration**: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, optional `GOOGLE_OAUTH_REDIRECT_URI`, `NEXT_PUBLIC_SITE_URL`, `GEMINI_API_KEY`; Supabase migration for Google token columns. Details: `docs/BACKEND_SETUP.md`.
 
 ### 1.6 Dark mode & UX
 
@@ -258,8 +271,9 @@ The system is organized around four coordinated subsystems:
 
 4. **Calendar & Export Subsystem**
    - Encapsulates routine scheduling, calendar visualization, per‑day overrides, and exports.
-   - Reuses the schedule builder across preview, calendar page, and ICS export.
+   - Reuses the schedule builder and **`calendar-buckets`** across preview, calendar page, ICS export, and Google Calendar AI sync.
    - Uses Supabase `profiles.schedule_overrides` for persistence.
+   - Optional **Google Calendar** submodule: OAuth + ToT interpretation + `googleapis` event creation.
 
 Each subsystem is mostly decoupled and communicates through strongly typed interfaces in `lib/types.ts` and thin API routes, making changes and additions localized and testable.
 
@@ -274,6 +288,7 @@ Each subsystem is mostly decoupled and communicates through strongly typed inter
   - `avoid_list` (text[]).
   - `tolerance` (text).
   - `schedule_overrides` (jsonb `{ [date: string]: routineId }`).
+  - Optional Google Calendar: `google_calendar_refresh_token`, `google_calendar_connected_at`, `calendar_time_zone` (see migrations).
   - `updated_at` (timestamptz).
 
 - **routines**
@@ -315,6 +330,10 @@ For full, non‑mock functionality, a user setting up the project must:
    - Run `npm run combine-datasets` then `npm run rag-ingest` to populate the index.
    - Set `PINECONE_API_KEY`, `PINECONE_INDEX_HOST` (or `PINECONE_HOST`), `GEMINI_API_KEY`.
 
+3b. **Optional: Google Calendar AI sync**
+   - Run the Supabase migration for Google token columns (`scripts/migrations/add-google-calendar-profile.sql`).
+   - Enable Google Calendar API; create OAuth Web client; set `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, and `NEXT_PUBLIC_SITE_URL` (see `docs/BACKEND_SETUP.md` §1.6).
+
 4. **Run the App**
    - Copy `skincareconsultant/.env.example` to `skincareconsultant/.env.local` and fill in all keys.
    - Run:
@@ -342,5 +361,5 @@ For full, non‑mock functionality, a user setting up the project must:
   - Warn about potential conflicts and high exfoliation/retinoid loads.
   - Provide explainable rationales for scores and recommendations.
 
-This PRD is intended as a high‑level, implementation‑aware design document for maintainers, and reviewers. For day‑to‑day setup steps, see `docs/BACKEND_SETUP.md`; for a quick overview of features and technologies, see the root `README.md`.
+This PRD is intended as a high‑level, implementation‑aware design document for maintainers and reviewers. For day‑to‑day setup steps, see `docs/BACKEND_SETUP.md`; for a quick overview of features and technologies (including ToT calendar sync and chat semantic caching), see the root `README.md`.
 

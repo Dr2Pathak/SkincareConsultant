@@ -3,18 +3,26 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
-import { Menu, X, Droplets, LogIn, LogOut } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
+import { Menu, X, Droplets, LogIn, LogOut, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth/auth-provider"
 import { ThemeToggle } from "@/components/theme-toggle"
 
-const navItems = [
+const navItems: { href: string; label: string; icon?: LucideIcon }[] = [
   { href: "/routine", label: "Routine" },
+  { href: "/routine/calendar", label: "Calendar", icon: Calendar },
   { href: "/product-check", label: "Product Check" },
   { href: "/chat", label: "Chat" },
   { href: "/ingredients", label: "Ingredient Map" },
 ]
+
+function isNavActive(pathname: string, href: string): boolean {
+  if (pathname === href) return true
+  if (href === "/routine/calendar") return pathname.startsWith("/routine/calendar")
+  return false
+}
 
 export function Header() {
   const pathname = usePathname()
@@ -28,7 +36,7 @@ export function Header() {
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Droplets className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
           </div>
-          <span className="text-lg font-semibold text-foreground">SkinCare Consultant</span>
+          <span className="text-lg font-semibold text-foreground">SkinSafe</span>
         </Link>
 
         {/* Desktop Navigation */}
@@ -38,12 +46,13 @@ export function Header() {
               key={item.href}
               href={item.href}
               className={cn(
-                "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                pathname === item.href
+                "inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                isNavActive(pathname, item.href)
                   ? "bg-accent text-accent-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
+              {item.icon ? <item.icon className="h-4 w-4 shrink-0 opacity-80" aria-hidden /> : null}
               {item.label}
             </Link>
           ))}
@@ -107,13 +116,14 @@ export function Header() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "block rounded-md px-3 py-2 text-base font-medium transition-colors",
-                  pathname === item.href
+                  "flex items-center gap-2 rounded-md px-3 py-2 text-base font-medium transition-colors",
+                  isNavActive(pathname, item.href)
                     ? "bg-accent text-accent-foreground"
                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                 )}
                 onClick={() => setMobileMenuOpen(false)}
               >
+                {item.icon ? <item.icon className="h-4 w-4 shrink-0 opacity-80" aria-hidden /> : null}
                 {item.label}
               </Link>
             ))}

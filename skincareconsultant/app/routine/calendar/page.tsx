@@ -6,37 +6,18 @@ import { Button } from "@/components/ui/button"
 import {
   getRoutineCalendarBootstrap,
   updateScheduleOverrides,
+  getGoogleCalendarStatus,
+  syncGoogleCalendarWithAi,
 } from "@/lib/data"
-import { buildRoutineSchedule } from "@/lib/routine-schedule"
-import type { RoutineScheduleEvent } from "@/lib/routine-schedule"
-import type { Routine, SavedRoutineSummary } from "@/lib/types"
-
-type DayBucket = {
-  date: string
-  events: RoutineScheduleEvent[]
-  routineId: string
-}
+import { Textarea } from "@/components/ui/textarea"
+import { buildCalendarBuckets, getDatesInRange } from "@/lib/calendar-buckets"
+import type { CalendarDayBucket } from "@/lib/calendar-buckets"
+import type { SavedRoutineSummary } from "@/lib/types"
 
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const
 
-function getDatesInRange(startDate: Date, horizonDays: number): string[] {
-  const out: string[] = []
-  const d = new Date(startDate)
-  d.setHours(0, 0, 0, 0)
-  for (let i = 0; i < horizonDays; i++) {
-    const next = new Date(d)
-    next.setDate(d.getDate() + i)
-    out.push(next.toISOString().slice(0, 10))
-  }
-  return out
-}
-
 function toggleDay(days: string[], day: string): string[] {
   return days.includes(day) ? days.filter((d) => d !== day) : [...days, day]
-}
-
-function toRoutine(r: SavedRoutineSummary): Routine {
-  return { id: r.id, name: r.name, am: r.am, pm: r.pm }
 }
 
 export default function RoutineCalendarPage() {
@@ -60,6 +41,13 @@ export default function RoutineCalendarPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [suggesting, setSuggesting] = useState(false)
+
+  const [googleConnected, setGoogleConnected] = useState(false)
+  const [googleStatusLoading, setGoogleStatusLoading] = useState(false)
+  const [aiPrompt, setAiPrompt] = useState("")
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiResult, setAiResult] = useState<string | null>(null)
+  const [gcalBanner, setGcalBanner] = useState<string | null>(null)
 
   useEffect(() => {
     if (!user) return
@@ -85,6 +73,30 @@ export default function RoutineCalendarPage() {
     }
   }, [user?.id])
 
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    setGoogleStatusLoading(true)
+    getGoogleCalendarStatus()
+      .then((s) => {
+        if (!cancelled) setGoogleConnected(s.connected)
+      })
+      .finally(() => {
+        if (!cancelled) setGoogleStatusLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [user?.id])
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const p = new URLSearchParams(window.location.search)
+    const g = p.get("gcal")
+    if (g === "connected") setGcalBanner("Google Calendar connected. You can describe a sync below.")
+    if (g === "error") setGcalBanner("Google connection failed. Try connecting again.")
+  }, [])
+
   const scope = useMemo(
     () => ({ includeAm, includePm, includeWeekly }),
     [includeAm, includePm, includeWeekly],
@@ -94,35 +106,19 @@ export default function RoutineCalendarPage() {
     [amTime, pmTime, weeklyTime, weeklyDays],
   )
 
-  const buckets = useMemo((): DayBucket[] => {
-    if (!defaultRoutineId || savedRoutines.length === 0) return []
+  const buckets = useMemo((): CalendarDayBucket[] => {
     const start = new Date()
     start.setHours(0, 0, 0, 0)
-    const dates = getDatesInRange(start, horizonDays)
-    const result: DayBucket[] = []
-    for (const dateStr of dates) {
-      const routineId = overrides[dateStr] ?? defaultRoutineId
-      const routine = savedRoutines.find((r) => r.id === routineId)
-      if (!routine) {
-        result.push({ date: dateStr, events: [], routineId })
-        continue
-      }
-      const dayDate = new Date(dateStr + "T12:00:00")
-      const events = buildRoutineSchedule(toRoutine(routine), prefs, scope, {
-        horizonDays: 1,
-        today: dayDate,
-      })
-      result.push({ date: dateStr, events, routineId })
-    }
-    return result
-  }, [
-    defaultRoutineId,
-    savedRoutines,
-    overrides,
-    horizonDays,
-    prefs,
-    scope,
-  ])
+    return buildCalendarBuckets({
+      defaultRoutineId,
+      savedRoutines,
+      overrides,
+      horizonDays,
+      scope,
+      prefs,
+      startDate: start,
+    })
+  }, [defaultRoutineId, savedRoutines, overrides, horizonDays, prefs, scope])
 
   const persistOverrides = useCallback(async (next: Record<string, string>) => {
     setSavingOverrides(true)
@@ -149,6 +145,51 @@ export default function RoutineCalendarPage() {
     },
     [defaultRoutineId, overrides, persistOverrides],
   )
+
+  const handleGoogleAiSync = useCallback(async () => {
+    const msg = aiPrompt.trim()
+    if (!msg) return
+    setAiBusy(true)
+    setAiResult(null)
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      const r = await syncGoogleCalendarWithAi({
+        message: msg,
+        includeAm,
+        includePm,
+        includeWeekly,
+        amTime,
+        pmTime,
+        weeklyTime,
+        weeklyDays,
+        timeZone: tz,
+        maxHorizonDays: horizonDays,
+      })
+      if (r.needsGoogleLink) {
+        setAiResult("Connect Google Calendar first (button above).")
+        setGoogleConnected(false)
+      } else if (r.error) {
+        setAiResult(r.error)
+      } else {
+        setAiResult(r.message ?? `Created ${r.created ?? 0} event(s).`)
+        if ((r.created ?? 0) > 0) setGoogleConnected(true)
+      }
+    } catch (e) {
+      setAiResult(e instanceof Error ? e.message : "Sync failed.")
+    } finally {
+      setAiBusy(false)
+    }
+  }, [
+    aiPrompt,
+    includeAm,
+    includePm,
+    includeWeekly,
+    amTime,
+    pmTime,
+    weeklyTime,
+    weeklyDays,
+    horizonDays,
+  ])
 
   const handleSuggest = useCallback(() => {
     if (savedRoutines.length < 2) {
@@ -201,6 +242,12 @@ export default function RoutineCalendarPage() {
           </Button>
         </div>
 
+        {gcalBanner && (
+          <p className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm text-foreground" role="status">
+            {gcalBanner}
+          </p>
+        )}
+
         {!user && (
           <p className="text-sm text-muted-foreground">
             <a href="/login" className="underline hover:text-foreground">
@@ -212,6 +259,50 @@ export default function RoutineCalendarPage() {
 
         {user && (
           <div className="space-y-4 rounded-xl border border-border bg-card p-4 sm:p-5">
+            <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Google Calendar (AI)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Connect once, then describe what to sync in plain language. Uses the same schedule logic as this
+                    page (Tree-of-Thoughts + your routines).
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {googleStatusLoading ? (
+                    <span className="text-xs text-muted-foreground">Checking link…</span>
+                  ) : googleConnected ? (
+                    <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Connected</span>
+                  ) : (
+                    <Button type="button" size="sm" variant="secondary" asChild>
+                      <a href="/api/calendar/google/oauth/start">Connect Google Calendar</a>
+                    </Button>
+                  )}
+                </div>
+              </div>
+              <Textarea
+                placeholder='e.g. "Sync the next two weeks, mornings and evenings only"'
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                rows={3}
+                disabled={aiBusy}
+                className="resize-y text-sm"
+              />
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" onClick={() => void handleGoogleAiSync()} disabled={aiBusy || !aiPrompt.trim()}>
+                  {aiBusy ? "Syncing…" : "Sync with AI"}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Times and AM/PM/weekly toggles above are sent with your request.
+                </span>
+              </div>
+              {aiResult && (
+                <p className="text-sm text-foreground" role="status">
+                  {aiResult}
+                </p>
+              )}
+            </div>
+
             {loading && (
               <p className="text-sm text-muted-foreground">Loading your routines and calendar…</p>
             )}

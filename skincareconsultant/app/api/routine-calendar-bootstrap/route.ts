@@ -8,8 +8,8 @@
  */
 
 import { NextResponse } from "next/server"
-import { getSupabaseServer } from "@/lib/supabase/server"
 import { getUserFromRequest } from "@/lib/supabase/auth-server"
+import { loadCalendarBootstrapForUser } from "@/lib/calendar-bootstrap-data"
 import type { SavedRoutineSummary } from "@/lib/types"
 
 export async function GET(request: Request) {
@@ -23,36 +23,7 @@ export async function GET(request: Request) {
       })
     }
 
-    const supabase = getSupabaseServer()
-
-    // Fetch routines once; derive default routine from is_current or recency.
-    const { data: routineRows } = await supabase
-      .from("routines")
-      .select("id, name, am, pm, is_current, updated_at")
-      .eq("user_id", user.id)
-      .order("updated_at", { ascending: false })
-
-    const savedRoutines: SavedRoutineSummary[] = Array.isArray(routineRows)
-      ? routineRows.map((r) => ({
-          id: r.id,
-          name: r.name ?? "My routine",
-          am: Array.isArray(r.am) ? (r.am as SavedRoutineSummary["am"]) : [],
-          pm: Array.isArray(r.pm) ? (r.pm as SavedRoutineSummary["pm"]) : [],
-          is_current: Boolean(r.is_current),
-          updated_at: r.updated_at,
-        }))
-      : []
-
-    const defaultRoutineId =
-      savedRoutines.find((r) => r.is_current)?.id ?? savedRoutines[0]?.id ?? null
-
-    const { data: profileRow } = await supabase
-      .from("profiles")
-      .select("schedule_overrides")
-      .eq("id", user.id)
-      .maybeSingle()
-
-    const overrides = (profileRow?.schedule_overrides ?? {}) as Record<string, string>
+    const { defaultRoutineId, savedRoutines, overrides } = await loadCalendarBootstrapForUser(user.id)
 
     return NextResponse.json({
       defaultRoutineId,

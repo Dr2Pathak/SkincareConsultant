@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { RoutineStepEditor, AddStepButton } from "@/components/routine/routine-step-editor"
+import { SixStepTemplateChart } from "@/components/routine/six-step-template-chart"
 import { RoutineHealthCard } from "@/components/routine/routine-health"
 import { RoutineInsightsCard } from "@/components/routine/routine-insights-card"
 import { AddProductDialog, type AddToRoutinePart } from "@/components/routine/add-product-dialog"
@@ -205,10 +206,11 @@ export default function RoutinePage() {
     prefix: string
   ) => {
     return () => {
+      const partLabel = prefix === "am" ? "AM" : "PM"
       const newStep: RoutineStep = {
         id: `${prefix}-${generateId()}`,
         order: steps.length + 1,
-        label: "New Step",
+        label: `${partLabel} step ${steps.length + 1}`,
       }
       setSteps([...steps, newStep])
     }
@@ -329,6 +331,10 @@ export default function RoutinePage() {
               </>
             )}
           </div>
+        </div>
+
+        <div className="mb-6">
+          <SixStepTemplateChart />
         </div>
 
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)]">
@@ -624,7 +630,7 @@ export default function RoutinePage() {
                   <a href="/ingredients">View Ingredient Map</a>
                 </Button>
                 <Button variant="outline" className="w-full justify-start" asChild>
-                  <a href="/chat">Ask the Consultant</a>
+                  <a href="/chat">Ask SkinSafe</a>
                 </Button>
               </div>
             </div>

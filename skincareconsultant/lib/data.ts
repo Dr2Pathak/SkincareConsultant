@@ -36,6 +36,35 @@ export async function getProfile(): Promise<UserProfile> {
   return api.getProfile()
 }
 
+export async function suggestIngredients(query: string): Promise<string[]> {
+  if (useMock) {
+    const q = query.trim().toLowerCase()
+    if (q.length < 2) return []
+    const pool = mockProfile.avoidList.concat(["Niacinamide", "Retinol", "Fragrance", "Phenoxyethanol"])
+    return pool.filter((s) => s.toLowerCase().includes(q)).slice(0, 15)
+  }
+  return api.suggestIngredients(query)
+}
+
+export async function saveOnboardingProfile(profile: UserProfile): Promise<UserProfile> {
+  if (useMock) return profile
+  return api.upsertProfile(profile)
+}
+
+export async function getGoogleCalendarStatus(): Promise<{ connected: boolean }> {
+  if (useMock) return { connected: false }
+  return api.getGoogleCalendarStatus()
+}
+
+export async function syncGoogleCalendarWithAi(
+  payload: api.SyncGoogleCalendarPayload,
+): Promise<api.SyncGoogleCalendarResult> {
+  if (useMock) {
+    return { created: 0, errors: [], message: "Mock mode: Google Calendar sync is disabled.", eventCount: 0 }
+  }
+  return api.syncGoogleCalendarWithAi(payload)
+}
+
 export async function getRoutine(): Promise<Routine> {
   if (useMock) return Promise.resolve(mockRoutine)
   return api.getRoutine()

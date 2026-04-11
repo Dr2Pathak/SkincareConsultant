@@ -125,13 +125,13 @@ export async function POST(request: Request) {
     const lines: string[] = []
     lines.push("BEGIN:VCALENDAR")
     lines.push("VERSION:2.0")
-    lines.push("PRODID:-//Skincare Consultant//Routine Schedule//EN")
+    lines.push("PRODID:-//SkinSafe//Routine Schedule//EN")
 
     for (const evt of events) {
       const [hourStr, minuteStr] = evt.time.split(":")
       const [y, m, d] = evt.date.split("-")
       const dt = `${y}${m}${d}T${(hourStr || "07").padStart(2, "0")}${(minuteStr || "00").padStart(2, "0")}00`
-      const uid = `${evt.id}@skincare-consultant`
+      const uid = `${evt.id}@skinsafe`
       const summary = escapeIcsText(evt.label)
       const descriptionParts: string[] = []
       if (evt.products.length > 0) {

@@ -30,12 +30,101 @@ function authHeaders(includeJson = false): HeadersInit {
 
 export async function getProfile(): Promise<UserProfile> {
   const url = `${API_BASE}/api/profile`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: authHeaders() });
   if (!res.ok) {
     console.error("Profile fetch failed", { url, status: res.status });
     throw new Error(USER_MESSAGE);
   }
   return res.json() as Promise<UserProfile>;
+}
+
+/** Autocomplete ingredient strings from product INCI lists (GET /api/ingredients/suggest). */
+export async function suggestIngredients(query: string): Promise<string[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const url = `${API_BASE}/api/ingredients/suggest?q=${encodeURIComponent(q.slice(0, 120))}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    return [];
+  }
+  const data = (await res.json()) as { suggestions?: string[] };
+  return Array.isArray(data.suggestions) ? data.suggestions : [];
+}
+
+export async function upsertProfile(partial: Partial<UserProfile>): Promise<UserProfile> {
+  const url = `${API_BASE}/api/profile`;
+  const body: Record<string, unknown> = {};
+  if (partial.skinTypes !== undefined) body.skinTypes = partial.skinTypes;
+  if (partial.concerns !== undefined) body.concerns = partial.concerns;
+  if (partial.avoidList !== undefined) body.avoidList = partial.avoidList;
+  if (partial.tolerance !== undefined) body.tolerance = partial.tolerance;
+  const res = await fetch(url, {
+    method: "PATCH",
+    headers: authHeaders(true),
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? USER_MESSAGE);
+  }
+  return res.json() as Promise<UserProfile>;
+}
+
+export async function getGoogleCalendarStatus(): Promise<{ connected: boolean }> {
+  const url = `${API_BASE}/api/calendar/google/status`;
+  const res = await fetch(url, { headers: authHeaders() });
+  if (!res.ok) {
+    return { connected: false };
+  }
+  return res.json() as Promise<{ connected: boolean }>;
+}
+
+export type SyncGoogleCalendarPayload = {
+  message: string;
+  includeAm?: boolean;
+  includePm?: boolean;
+  includeWeekly?: boolean;
+  amTime?: string;
+  pmTime?: string;
+  weeklyTime?: string;
+  weeklyDays?: string[];
+  timeZone?: string;
+  maxHorizonDays?: number;
+};
+
+export type SyncGoogleCalendarResult = {
+  created: number;
+  errors?: string[];
+  eventCount?: number;
+  horizonDays?: number;
+  message?: string;
+  error?: string;
+  needsGoogleLink?: boolean;
+  clarifying?: boolean;
+};
+
+export async function syncGoogleCalendarWithAi(
+  payload: SyncGoogleCalendarPayload,
+): Promise<SyncGoogleCalendarResult> {
+  const url = `${API_BASE}/api/calendar/google/sync`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: authHeaders(true),
+    body: JSON.stringify(payload),
+  });
+  const data = (await res.json().catch(() => ({}))) as SyncGoogleCalendarResult & {
+    error?: string;
+    needsGoogleLink?: boolean;
+  };
+  if (!res.ok) {
+    return {
+      created: 0,
+      error: data.error ?? USER_MESSAGE,
+      needsGoogleLink: data.needsGoogleLink,
+      clarifying: data.clarifying,
+    };
+  }
+  return data;
 }
 
 export async function getRoutine(): Promise<Routine> {

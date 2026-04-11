@@ -25,15 +25,17 @@ describe("ChatPage", () => {
     mockSendChatMessage.mockResolvedValue({ reply: "Test reply" });
   });
 
-  it("renders chat heading and consultant title", () => {
+  it("renders chat heading and SkinSafe title", () => {
     render(<ChatPage />);
-    expect(screen.getByRole("heading", { name: /skincare consultant/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^SkinSafe$/i })).toBeInTheDocument();
   });
 
-  it("shows disclaimer about guidance", () => {
+  it("exposes guidance disclaimer for assistive tech (welcome + sr-only hint)", () => {
     render(<ChatPage />);
-    const disclaimers = screen.getAllByText(/guidance only|professional advice/i);
-    expect(disclaimers.length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/educational and guidance purposes only/i).length).toBeGreaterThan(0);
+    const hints = document.querySelectorAll("#chat-input-hint");
+    expect(hints.length).toBeGreaterThan(0);
+    expect(hints[0]).toHaveTextContent(/not medical advice/i);
   });
 
   it("disables message input when user is signed out", () => {

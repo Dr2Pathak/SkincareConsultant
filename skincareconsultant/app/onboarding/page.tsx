@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowRight, ArrowLeft, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -9,7 +9,9 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Disclaimer } from "@/components/disclaimer"
+import { useAuth } from "@/components/auth/auth-provider"
 import { cn } from "@/lib/utils"
+import { suggestIngredients, saveOnboardingProfile, USE_MOCK } from "@/lib/data"
 import type { SkinType, Concern, ToleranceLevel } from "@/lib/types"
 
 const skinTypes: { value: SkinType; label: string; description: string }[] = [
@@ -50,35 +52,52 @@ const toleranceLevels: { value: ToleranceLevel; label: string; description: stri
   },
 ]
 
+const SUGGEST_DEBOUNCE_MS = 300
+
 export default function OnboardingPage() {
   const router = useRouter()
+  const { user } = useAuth()
   const [step, setStep] = useState(1)
   const [selectedSkinTypes, setSelectedSkinTypes] = useState<SkinType[]>([])
   const [selectedConcerns, setSelectedConcerns] = useState<Concern[]>([])
   const [avoidInput, setAvoidInput] = useState("")
   const [avoidList, setAvoidList] = useState<string[]>([])
   const [tolerance, setTolerance] = useState<ToleranceLevel>("medium")
+  const [avoidSuggestions, setAvoidSuggestions] = useState<string[]>([])
+  const [avoidSuggestLoading, setAvoidSuggestLoading] = useState(false)
+  const [completeError, setCompleteError] = useState<string | null>(null)
+  const [completing, setCompleting] = useState(false)
+  const suggestWrapRef = useRef<HTMLDivElement>(null)
 
   const totalSteps = 4
 
   const toggleSkinType = (type: SkinType) => {
     setSelectedSkinTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type],
     )
   }
 
   const toggleConcern = (concern: Concern) => {
     setSelectedConcerns((prev) =>
-      prev.includes(concern) ? prev.filter((c) => c !== concern) : [...prev, concern]
+      prev.includes(concern) ? prev.filter((c) => c !== concern) : [...prev, concern],
     )
   }
 
-  const addAvoidItem = () => {
-    const trimmed = avoidInput.trim()
+  const addAvoidItem = useCallback((raw?: string) => {
+    const trimmed = (raw ?? avoidInput).trim()
     if (trimmed && !avoidList.includes(trimmed)) {
       setAvoidList((prev) => [...prev, trimmed])
-      setAvoidInput("")
     }
+    setAvoidInput("")
+    setAvoidSuggestions([])
+  }, [avoidInput, avoidList])
+
+  const pickSuggestion = (s: string) => {
+    if (!avoidList.includes(s)) {
+      setAvoidList((prev) => [...prev, s])
+    }
+    setAvoidInput("")
+    setAvoidSuggestions([])
   }
 
   const removeAvoidItem = (item: string) => {
@@ -92,15 +111,67 @@ export default function OnboardingPage() {
     }
   }
 
-  const handleComplete = () => {
-    // In a real app, save to localStorage or API
-    console.log({
-      skinTypes: selectedSkinTypes,
-      concerns: selectedConcerns,
-      avoidList,
-      tolerance,
-    })
-    router.push("/routine")
+  useEffect(() => {
+    if (step !== 3) return
+    const q = avoidInput.trim()
+    if (q.length < 2) {
+      setAvoidSuggestions([])
+      return
+    }
+    let cancelled = false
+    const t = setTimeout(() => {
+      setAvoidSuggestLoading(true)
+      suggestIngredients(q)
+        .then((list) => {
+          if (!cancelled) {
+            setAvoidSuggestions(list.filter((s) => !avoidList.includes(s)))
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setAvoidSuggestions([])
+        })
+        .finally(() => {
+          if (!cancelled) setAvoidSuggestLoading(false)
+        })
+    }, SUGGEST_DEBOUNCE_MS)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [avoidInput, step, avoidList])
+
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      if (suggestWrapRef.current && !suggestWrapRef.current.contains(e.target as Node)) {
+        setAvoidSuggestions([])
+      }
+    }
+    document.addEventListener("mousedown", onDocMouseDown)
+    return () => document.removeEventListener("mousedown", onDocMouseDown)
+  }, [])
+
+  const handleComplete = async () => {
+    setCompleteError(null)
+    if (!USE_MOCK && !user) {
+      router.push(`/login?redirect=${encodeURIComponent("/onboarding")}`)
+      return
+    }
+    setCompleting(true)
+    try {
+      await saveOnboardingProfile({
+        skinTypes: selectedSkinTypes,
+        concerns: selectedConcerns,
+        avoidList,
+        tolerance,
+      })
+      router.push("/routine")
+      router.refresh()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Could not save your profile. Try again."
+      setCompleteError(msg)
+    } finally {
+      setCompleting(false)
+    }
   }
 
   const canProceed = () => {
@@ -110,7 +181,7 @@ export default function OnboardingPage() {
       case 2:
         return selectedConcerns.length > 0
       case 3:
-        return true // avoid list is optional
+        return true
       case 4:
         return true
       default:
@@ -121,10 +192,11 @@ export default function OnboardingPage() {
   return (
     <div className="min-h-[calc(100vh-8rem)] px-4 py-8 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl">
-        {/* Progress */}
         <div className="mb-8">
-          <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
-            <span>Step {step} of {totalSteps}</span>
+          <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
+            <span>
+              Step {step} of {totalSteps}
+            </span>
             <span>{Math.round((step / totalSteps) * 100)}% complete</span>
           </div>
           <div className="h-2 rounded-full bg-muted">
@@ -135,14 +207,13 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        {/* Step 1: Skin Types */}
         {step === 1 && (
           <section aria-labelledby="skin-type-heading">
             <h1 id="skin-type-heading" className="text-2xl font-bold text-foreground">
-              What's your skin type?
+              What&apos;s your skin type?
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Select all that apply. This helps us understand your skin's baseline.
+              Select all that apply. This helps us understand your skin&apos;s baseline.
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -155,7 +226,7 @@ export default function OnboardingPage() {
                     "flex flex-col items-start rounded-xl border-2 p-4 text-left transition-all",
                     selectedSkinTypes.includes(type.value)
                       ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
+                      : "border-border hover:border-primary/50",
                   )}
                   aria-pressed={selectedSkinTypes.includes(type.value)}
                 >
@@ -172,14 +243,13 @@ export default function OnboardingPage() {
           </section>
         )}
 
-        {/* Step 2: Concerns */}
         {step === 2 && (
           <section aria-labelledby="concerns-heading">
             <h1 id="concerns-heading" className="text-2xl font-bold text-foreground">
               What are your skin goals?
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Select the concerns you'd like to address with your routine.
+              Select the concerns you&apos;d like to address with your routine.
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -192,7 +262,7 @@ export default function OnboardingPage() {
                     "flex items-center justify-between rounded-xl border-2 p-4 text-left transition-all",
                     selectedConcerns.includes(concern.value)
                       ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
+                      : "border-border hover:border-primary/50",
                   )}
                   aria-pressed={selectedConcerns.includes(concern.value)}
                 >
@@ -206,34 +276,61 @@ export default function OnboardingPage() {
           </section>
         )}
 
-        {/* Step 3: Avoid List */}
         {step === 3 && (
           <section aria-labelledby="avoid-heading">
             <h1 id="avoid-heading" className="text-2xl font-bold text-foreground">
               Ingredients to Avoid
             </h1>
             <p className="mt-2 text-muted-foreground">
-              Add any ingredients you're allergic to or want to avoid. This is optional.
+              Search common ingredients from our catalog or add your own. This is optional.
             </p>
 
             <Disclaimer variant="warning" className="mt-4">
               We use this to flag ingredients in product checks. This is not medical advice.
             </Disclaimer>
 
-            <div className="mt-6">
+            <div className="mt-6" ref={suggestWrapRef}>
               <Label htmlFor="avoid-input" className="sr-only">
                 Add ingredient to avoid
               </Label>
               <div className="flex gap-2">
-                <Input
-                  id="avoid-input"
-                  placeholder="e.g., fragrance, alcohol denat"
-                  value={avoidInput}
-                  onChange={(e) => setAvoidInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                />
-                <Button type="button" onClick={addAvoidItem} disabled={!avoidInput.trim()}>
-                  Add
+                <div className="relative flex-1">
+                  <Input
+                    id="avoid-input"
+                    placeholder="Type 2+ characters to search (e.g. retinol)"
+                    value={avoidInput}
+                    onChange={(e) => setAvoidInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    autoComplete="off"
+                    aria-autocomplete="list"
+                    aria-controls="avoid-suggest-list"
+                    aria-expanded={avoidSuggestions.length > 0}
+                  />
+                  {(avoidSuggestLoading || avoidSuggestions.length > 0) && (
+                    <ul
+                      id="avoid-suggest-list"
+                      role="listbox"
+                      className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded-md border border-border bg-popover py-1 text-sm shadow-md"
+                    >
+                      {avoidSuggestLoading && avoidSuggestions.length === 0 && (
+                        <li className="px-3 py-2 text-muted-foreground">Searching…</li>
+                      )}
+                      {avoidSuggestions.map((s) => (
+                        <li key={s} role="option">
+                          <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left hover:bg-accent"
+                            onClick={() => pickSuggestion(s)}
+                          >
+                            {s}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <Button type="button" onClick={() => addAvoidItem()} disabled={!avoidInput.trim()}>
+                  Add custom
                 </Button>
               </div>
 
@@ -259,7 +356,6 @@ export default function OnboardingPage() {
           </section>
         )}
 
-        {/* Step 4: Tolerance */}
         {step === 4 && (
           <section aria-labelledby="tolerance-heading">
             <h1 id="tolerance-heading" className="text-2xl font-bold text-foreground">
@@ -281,7 +377,7 @@ export default function OnboardingPage() {
                     "flex cursor-pointer items-start gap-4 rounded-xl border-2 p-4 transition-all",
                     tolerance === level.value
                       ? "border-primary bg-primary/5"
-                      : "border-border hover:border-primary/50"
+                      : "border-border hover:border-primary/50",
                   )}
                 >
                   <RadioGroupItem value={level.value} id={level.value} className="mt-0.5" />
@@ -295,13 +391,14 @@ export default function OnboardingPage() {
           </section>
         )}
 
-        {/* Navigation */}
+        {completeError && (
+          <p className="mt-4 text-sm text-destructive" role="alert">
+            {completeError}
+          </p>
+        )}
+
         <div className="mt-8 flex items-center justify-between">
-          <Button
-            variant="ghost"
-            onClick={() => setStep(step - 1)}
-            disabled={step === 1}
-          >
+          <Button variant="ghost" onClick={() => setStep(step - 1)} disabled={step === 1}>
             <ArrowLeft className="mr-2 h-4 w-4" aria-hidden="true" />
             Back
           </Button>
@@ -312,8 +409,8 @@ export default function OnboardingPage() {
               <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
             </Button>
           ) : (
-            <Button onClick={handleComplete}>
-              Complete Setup
+            <Button onClick={() => void handleComplete()} disabled={completing}>
+              {completing ? "Saving…" : "Complete Setup"}
               <Check className="ml-2 h-4 w-4" aria-hidden="true" />
             </Button>
           )}

@@ -12,8 +12,8 @@ const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono"
 
 export const metadata: Metadata = {
   title: {
-    default: 'SkinCare Consultant',
-    template: '%s | SkinCare Consultant',
+    default: 'SkinSafe',
+    template: '%s | SkinSafe',
   },
   description: 'Check product compatibility with your skincare routine, get personalized guidance, and explore ingredient relationships.',
   generator: 'v0.app',
@@ -62,7 +62,7 @@ export default function RootLayout({
         >
           <AuthProvider>
             <Header />
-            <main className="flex-1">
+            <main className="flex min-h-0 flex-1 flex-col">
               {children}
             </main>
             <Footer />
