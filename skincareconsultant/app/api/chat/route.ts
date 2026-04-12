@@ -319,7 +319,7 @@ export async function POST(request: Request) {
         ? `\n\nRetrieved RAG context:\n${context.slice(0, 8000)}`
         : "\n\nNo specific RAG context was retrieved; use the knowledge-graph and routine above, and general skincare knowledge.",
     ].join("")
-    const reply = await generateChatReply(systemPrompt, message, { maxOutputTokens: 2048 })
+    const reply = await generateChatReply(systemPrompt, message, { maxOutputTokens: 4096 })
 
     if (enableTiming) {
       console.log("[chat] totalMs", { total: Date.now() - requestStart })
