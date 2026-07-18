@@ -17,6 +17,11 @@ export async function GET() {
       neo4j: health.neo4j,
       pinecone: health.pinecone,
       gemini: health.gemini,
+      redis: health.redis,
+    },
+    probes: {
+      live: "/api/health/live",
+      ready: "/api/health/ready",
     },
     message: health.message,
   })

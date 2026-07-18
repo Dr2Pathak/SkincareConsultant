@@ -1,0 +1,22 @@
+{
+  "branches": [
+    {
+      "id": "b1",
+      "interpretation_summary": "14 days AM and PM",
+      "horizon_days": 14,
+      "include_am": true,
+      "include_pm": true,
+      "include_weekly": false,
+      "routine_id": null
+    },
+    {
+      "id": "b2",
+      "interpretation_summary": "7 days mornings only",
+      "horizon_days": 7,
+      "include_am": true,
+      "include_pm": false,
+      "include_weekly": false,
+      "routine_id": "routine-a"
+    }
+  ]
+}

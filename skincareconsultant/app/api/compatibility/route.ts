@@ -12,12 +12,16 @@ import { embedTexts } from "@/lib/gemini"
 import type { CompatibilityResult, CompatibilityDimension, IngredientNote } from "@/lib/types"
 import type { RagMetadata } from "@/lib/rag-types"
 import { resolveInciListToNodeIds } from "@/lib/inci-resolver"
+import { withSpan } from "@/lib/telemetry/tracing"
 
 export async function GET(request: Request) {
+  return withSpan("compatibility.request", { route: "/api/compatibility" }, async (rootSpan) => {
   const productId = new URL(request.url).searchParams.get("productId")
   if (!productId) {
     return NextResponse.json({ error: "productId required" }, { status: 400 })
   }
+
+  rootSpan.setAttribute("product.id", productId)
 
   try {
     const supabase = getSupabaseServer()
@@ -72,6 +76,7 @@ export async function GET(request: Request) {
 
     let conflictCount = 0
     try {
+      conflictCount = await withSpan("compatibility.neo4j.conflicts", { productId }, async (neoSpan) => {
       const driver = getNeo4jDriver()
       const session = driver.session()
       try {
@@ -80,19 +85,23 @@ export async function GET(request: Request) {
           // No resolvable ingredients; skip graph lookup but still return avoid-list result.
           throw new Error("No resolvable INCI ids for graph lookup")
         }
+        neoSpan.setAttribute("neo4j.ingredient_ids", ids.length)
         const res = await session.run(
           "MATCH (a)-[r:CONFLICTS_WITH]->(b) WHERE a.id IN $ids OR b.id IN $ids RETURN a.id, b.id",
           { ids }
         )
-        conflictCount = res.records.length
-        if (conflictCount > 0) {
-          if (verdict !== "not_recommended") verdict = "patch_test"
-          score = Math.min(score, 60)
-          scoreLabel = "Patch test recommended"
-          reasons.push("Some ingredients may conflict with others in your routine or this product.")
-        }
+        const count = res.records.length
+        neoSpan.setAttribute("neo4j.conflict_count", count)
+        return count
       } finally {
         await session.close()
+      }
+      })
+      if (conflictCount > 0) {
+        if (verdict !== "not_recommended") verdict = "patch_test"
+        score = Math.min(score, 60)
+        scoreLabel = "Patch test recommended"
+        reasons.push("Some ingredients may conflict with others in your routine or this product.")
       }
     } catch (neoErr) {
       const msg = neoErr instanceof Error ? neoErr.message : "Unknown error"
@@ -102,6 +111,7 @@ export async function GET(request: Request) {
     // RAG-based goal alignment (best-effort; does not override safety rules)
     try {
       if (profileConcerns.length > 0 || profileSkinTypes.length > 0) {
+        await withSpan("compatibility.rag.goal_alignment", { productId }, async (ragSpan) => {
         const pc = getPineconeClient()
         const host = getPineconeIndexHost()
         const index = pc.index({ host })
@@ -121,20 +131,25 @@ export async function GET(request: Request) {
         const productText = `${productRow.name}; ingredients: ${inciList.slice(0, 15).join(", ")}`
         const query = `skincare product goal alignment. Profile: ${profileText}. Product: ${productText}.`
 
-        const [embedding] = await embedTexts([query])
-        const result = await index.query({
-          vector: embedding,
-          topK: 6,
-          includeMetadata: true,
-        })
+        const [embedding] = await withSpan("compatibility.embed", {}, () => embedTexts([query]))
+        ragSpan.setAttribute("embed.dimensions", embedding.length)
+        const result = await withSpan("compatibility.pinecone.query", {}, () =>
+          index.query({
+            vector: embedding,
+            topK: 6,
+            includeMetadata: true,
+          }),
+        )
         const matches =
           (result as { matches?: Array<{ score?: number; metadata?: RagMetadata }> }).matches ?? []
+        ragSpan.setAttribute("pinecone.match_count", matches.length)
         if (matches.length > 0) {
           const scores = matches
             .map((m) => (typeof m.score === "number" ? m.score : 0))
             .filter((s) => s > 0)
           if (scores.length > 0) {
             const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+            ragSpan.setAttribute("pinecone.avg_score", Math.round(avg * 1000) / 1000)
             const concernsText =
               profileConcerns.length > 0 ? profileConcerns.join(", ") : "your goals"
             if (avg >= 0.35) {
@@ -155,6 +170,7 @@ export async function GET(request: Request) {
             }
           }
         }
+        })
       }
     } catch (ragErr) {
       const msg = ragErr instanceof Error ? ragErr.message : "Unknown error"
@@ -175,6 +191,7 @@ export async function GET(request: Request) {
       reasons,
       ingredientNotes: ingredientNotes.length > 0 ? ingredientNotes : undefined,
     }
+    rootSpan.setAttribute("compatibility.verdict", verdict)
     return NextResponse.json(result)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error"
@@ -184,4 +201,5 @@ export async function GET(request: Request) {
       { status: 500 }
     )
   }
+  })
 }

@@ -26,6 +26,7 @@ describe("env", () => {
       expect(health.neo4j).toBe("ok")
       expect(health.pinecone).toBe("ok")
       expect(health.gemini).toBe("ok")
+      expect(health.redis).toBe("missing")
       expect(health.message).toBeUndefined()
     })
 

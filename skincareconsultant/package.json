@@ -8,7 +8,9 @@
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:metrics": "vitest run --config vitest.metrics.config.ts",
+    "report:value": "vitest run --config vitest.metrics.config.ts lib/metrics/value.metrics.test.ts"
   },
   "dependencies": {
     "@google/genai": "^1.45.0",

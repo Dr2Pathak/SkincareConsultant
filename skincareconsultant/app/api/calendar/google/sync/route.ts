@@ -1,17 +1,14 @@
 /**
- * POST /api/calendar/google/sync — Tree-of-Thoughts interpretation + buildRoutineSchedule-derived events → Google Calendar.
+ * POST /api/calendar/google/sync — enqueue async Tree-of-Thoughts + Google Calendar sync.
+ * Returns 202 + jobId; poll GET /api/calendar/google/sync/status?jobId=
  */
 
 import { NextResponse } from "next/server"
 import { z } from "zod"
 import { getUserFromRequest } from "@/lib/supabase/auth-server"
-import { getSupabaseServer } from "@/lib/supabase/server"
-import { loadCalendarBootstrapForUser } from "@/lib/calendar-bootstrap-data"
-import { buildCalendarBuckets, flattenBucketEvents } from "@/lib/calendar-buckets"
-import type { RoutineSchedulePrefs } from "@/lib/routine-schedule"
-import { interpretCalendarRequestWithTot } from "@/lib/calendar-ai-tot"
-import { insertRoutineEventsToGoogleCalendar } from "@/lib/google-calendar-insert"
 import { getChatEnvError } from "@/lib/env"
+import { createCalendarSyncJob } from "@/lib/jobs/calendar-sync-store"
+import { processCalendarSyncJob } from "@/lib/jobs/process-calendar-sync"
 
 const MAX_HORIZON = 42
 
@@ -26,6 +23,8 @@ const bodySchema = z.object({
   weeklyDays: z.array(z.string()).optional(),
   timeZone: z.string().max(80).optional(),
   maxHorizonDays: z.number().int().min(1).max(MAX_HORIZON).optional(),
+  /** Set true to run synchronously (legacy/tests). Default: async job. */
+  sync: z.boolean().optional(),
 })
 
 export async function POST(request: Request) {
@@ -54,101 +53,33 @@ export async function POST(request: Request) {
     }
 
     const body = parsed.data
-    const supabase = getSupabaseServer()
+    const job = await createCalendarSyncJob(user.id)
 
-    const { data: profileRow, error: profileErr } = await supabase
-      .from("profiles")
-      .select("google_calendar_refresh_token, calendar_time_zone")
-      .eq("id", user.id)
-      .maybeSingle()
+    const run = () => processCalendarSyncJob(job.id, user.id, body)
 
-    if (profileErr) {
-      console.error("sync profile load failed", { userId: user.id, error: profileErr.message })
-      return NextResponse.json({ error: "Could not load profile" }, { status: 500 })
+    if (body.sync === true || process.env.CALENDAR_SYNC_INLINE === "1") {
+      await run()
+      const { getCalendarSyncJob } = await import("@/lib/jobs/calendar-sync-store")
+      const finished = await getCalendarSyncJob(job.id)
+      if (!finished) {
+        return NextResponse.json({ error: "Job lost" }, { status: 500 })
+      }
+      if (finished.status === "failed") {
+        return NextResponse.json({ error: finished.error ?? "Sync failed", jobId: job.id }, { status: 400 })
+      }
+      return NextResponse.json({ jobId: job.id, status: finished.status, ...finished.result })
     }
 
-    const refreshToken = profileRow?.google_calendar_refresh_token as string | null | undefined
-    if (!refreshToken) {
-      return NextResponse.json({ error: "Google Calendar not connected", needsGoogleLink: true }, { status: 400 })
-    }
+    void run()
 
-    const { defaultRoutineId, savedRoutines, overrides } = await loadCalendarBootstrapForUser(user.id)
-    const routineSummaries = savedRoutines.map((r) => ({ id: r.id, name: r.name }))
-    const cap = Math.min(MAX_HORIZON, body.maxHorizonDays ?? MAX_HORIZON)
-
-    const tot = await interpretCalendarRequestWithTot(body.message, {
-      defaultRoutineId,
-      savedRoutines: routineSummaries,
-      maxHorizonDays: cap,
-    })
-
-    if (!tot.ok) {
-      return NextResponse.json({ error: tot.message, clarifying: true }, { status: 400 })
-    }
-
-    const { horizonDays, scope, effectiveDefaultRoutineId } = tot.data
-
-    const prefs: RoutineSchedulePrefs = {
-      amTime: body.amTime,
-      pmTime: body.pmTime,
-      weeklyTime: body.weeklyTime,
-      weeklyDays: body.weeklyDays,
-    }
-
-    const mergedScope = {
-      includeAm: scope.includeAm && (body.includeAm !== false),
-      includePm: scope.includePm && (body.includePm !== false),
-      includeWeekly: scope.includeWeekly && (body.includeWeekly !== false),
-    }
-
-    const start = new Date()
-    start.setHours(0, 0, 0, 0)
-    const buckets = buildCalendarBuckets({
-      defaultRoutineId: effectiveDefaultRoutineId,
-      savedRoutines,
-      overrides,
-      horizonDays,
-      scope: mergedScope,
-      prefs,
-      startDate: start,
-    })
-
-    const events = flattenBucketEvents(buckets)
-    if (events.length === 0) {
-      return NextResponse.json(
-        {
-          error:
-            "No events to sync. Add steps to your routine or enable AM/PM/weekly in the calendar view, then try again.",
-          created: 0,
-        },
-        { status: 400 },
-      )
-    }
-
-    const tz =
-      body.timeZone ||
-      (typeof profileRow?.calendar_time_zone === "string" ? profileRow.calendar_time_zone : "") ||
-      "UTC"
-
-    if (body.timeZone && body.timeZone.length > 1) {
-      await supabase
-        .from("profiles")
-        .update({ calendar_time_zone: body.timeZone, updated_at: new Date().toISOString() })
-        .eq("id", user.id)
-    }
-
-    const { created, errors } = await insertRoutineEventsToGoogleCalendar(refreshToken, events, tz)
-
-    return NextResponse.json({
-      created,
-      errors,
-      horizonDays,
-      eventCount: events.length,
-      message:
-        created > 0
-          ? `Created ${created} event(s) in Google Calendar.`
-          : "No events were created. Check errors or reconnect Google.",
-    })
+    return NextResponse.json(
+      {
+        jobId: job.id,
+        status: "pending",
+        message: "Calendar sync started. Poll /api/calendar/google/sync/status?jobId=" + job.id,
+      },
+      { status: 202 },
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error"
     console.error("POST /api/calendar/google/sync failed", { error: message })

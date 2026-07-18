@@ -37,11 +37,25 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  // Prefer validated user; fall back to cookie session when auth server is unreachable
+  // (e.g. local TLS / proxy issues — otherwise sign-in succeeds but middleware loops to /login).
+  let authedUser = null as { id: string } | null
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    authedUser = user
+  } catch (err) {
+    console.warn("middleware getUser failed; falling back to getSession", {
+      path: pathname,
+      error: err instanceof Error ? err.message : "unknown",
+    })
+  }
 
-  if (!user) {
+  if (!authedUser) {
+    const { data: { session } } = await supabase.auth.getSession()
+    authedUser = session?.user ?? null
+  }
+
+  if (!authedUser) {
     const login = new URL("/login", request.url)
     login.searchParams.set("redirect", `${pathname}${request.nextUrl.search}`)
     return NextResponse.redirect(login)

@@ -11,6 +11,7 @@ describe("GET /api/health", () => {
     expect(data.services).toHaveProperty("neo4j")
     expect(data.services).toHaveProperty("pinecone")
     expect(data.services).toHaveProperty("gemini")
+    expect(data.services).toHaveProperty("redis")
     const statuses = ["ok", "missing"]
     expect(statuses).toContain(data.services.supabase)
     expect(statuses).toContain(data.services.neo4j)

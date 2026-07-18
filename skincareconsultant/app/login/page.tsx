@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -13,7 +12,6 @@ function safeRedirectPath(raw: string | null): string {
 }
 
 export default function LoginPage() {
-  const router = useRouter()
   const { signIn, signUp } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -39,8 +37,8 @@ export default function LoginPage() {
         setError(err)
         return
       }
-      router.push(afterLoginPath)
-      router.refresh()
+      // Full navigation ensures auth cookies are sent before middleware runs on the target page.
+      window.location.assign(afterLoginPath)
     } finally {
       setSubmitting(false)
     }

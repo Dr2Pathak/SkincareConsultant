@@ -13,3 +13,5 @@ out/
 .env
 .env.local
 .env.*.local
+skincareconsultant/.perf/
+**/.perf/

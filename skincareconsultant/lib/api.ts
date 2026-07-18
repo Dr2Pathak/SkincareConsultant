@@ -101,7 +101,33 @@ export type SyncGoogleCalendarResult = {
   error?: string;
   needsGoogleLink?: boolean;
   clarifying?: boolean;
+  jobId?: string;
+  status?: string;
 };
+
+async function pollCalendarSyncJob(jobId: string, maxAttempts = 60): Promise<SyncGoogleCalendarResult> {
+  const statusUrl = `${API_BASE}/api/calendar/google/sync/status?jobId=${encodeURIComponent(jobId)}`;
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const res = await fetch(statusUrl, { headers: authHeaders() });
+    if (!res.ok) {
+      const err = (await res.json().catch(() => ({}))) as { error?: string };
+      return { created: 0, error: err.error ?? USER_MESSAGE };
+    }
+    const job = (await res.json()) as {
+      status: string;
+      result?: SyncGoogleCalendarResult;
+      error?: string;
+    };
+    if (job.status === "completed" && job.result) {
+      return { ...job.result, jobId, status: job.status };
+    }
+    if (job.status === "failed") {
+      return { created: 0, error: job.error ?? "Sync failed", jobId, status: job.status };
+    }
+  }
+  return { created: 0, error: "Sync timed out. Try again later.", jobId };
+}
 
 export async function syncGoogleCalendarWithAi(
   payload: SyncGoogleCalendarPayload,
@@ -115,7 +141,12 @@ export async function syncGoogleCalendarWithAi(
   const data = (await res.json().catch(() => ({}))) as SyncGoogleCalendarResult & {
     error?: string;
     needsGoogleLink?: boolean;
+    jobId?: string;
+    clarifying?: boolean;
   };
+  if (res.status === 202 && data.jobId) {
+    return pollCalendarSyncJob(data.jobId);
+  }
   if (!res.ok) {
     return {
       created: 0,

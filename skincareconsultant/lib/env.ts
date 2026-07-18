@@ -17,6 +17,7 @@ export interface EnvHealth {
   neo4j: ServiceStatus
   pinecone: ServiceStatus
   gemini: ServiceStatus
+  redis: ServiceStatus
   /** Human-readable hint when something is missing */
   message?: string
 }
@@ -38,6 +39,8 @@ export function getEnvHealth(): EnvHealth {
     isSet(process.env.PINECONE_API_KEY) &&
     (isSet(process.env.PINECONE_INDEX_HOST) || isSet(process.env.PINECONE_HOST))
   const gemini = isSet(process.env.GEMINI_API_KEY)
+  const redis =
+    isSet(process.env.UPSTASH_REDIS_REST_URL) && isSet(process.env.UPSTASH_REDIS_REST_TOKEN)
 
   const missing: string[] = []
   if (!supabase) missing.push("Supabase")
@@ -50,6 +53,7 @@ export function getEnvHealth(): EnvHealth {
     neo4j: neo4j ? "ok" : "missing",
     pinecone: pinecone ? "ok" : "missing",
     gemini: gemini ? "ok" : "missing",
+    redis: redis ? "ok" : "missing",
     message: missing.length > 0 ? `Missing: ${missing.join(", ")}. See .env.example and docs/BACKEND_SETUP.md.` : undefined,
   }
 }
