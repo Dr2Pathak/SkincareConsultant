@@ -158,16 +158,17 @@ export default function ChatPage() {
 
   const shellClass = isExpanded
     ? "fixed inset-0 z-[60] flex flex-col bg-background"
-    : "flex min-h-0 flex-1 flex-col px-4 py-4 sm:px-6 lg:px-8"
+    : "flex min-h-0 flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8"
 
   return (
     <div className={shellClass}>
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
-        <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
+        <div className="mb-5 flex shrink-0 items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold text-foreground">SkinSafe</h1>
-            <p className="text-sm text-muted-foreground">
-              Ask me about ingredients, routine advice, and product recommendations.
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">Chat</h1>
+            <div className="barrier-rule mt-2" aria-hidden="true" />
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
+              Ask about ingredients, routine advice, and product fit — grounded in the routine you select below.
             </p>
           </div>
           <Button
@@ -194,7 +195,7 @@ export default function ChatPage() {
         </div>
 
         {/* Routine to answer for */}
-        <div className="mb-4 shrink-0 rounded-xl border border-border bg-card p-3 sm:p-4">
+        <div className="mb-4 shrink-0 surface-panel p-3 sm:p-4">
           <label htmlFor="chat-routine" className="block text-sm font-medium text-foreground">
             Routine to answer for
           </label>

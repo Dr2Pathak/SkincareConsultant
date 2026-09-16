@@ -25,9 +25,9 @@ describe("ChatPage", () => {
     mockSendChatMessage.mockResolvedValue({ reply: "Test reply" });
   });
 
-  it("renders chat heading and SkinSafe title", () => {
+  it("renders chat heading", () => {
     render(<ChatPage />);
-    expect(screen.getByRole("heading", { name: /^SkinSafe$/i })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /^Chat$/i })).toBeInTheDocument();
   });
 
   it("exposes guidance disclaimer for assistive tech (welcome + sr-only hint)", () => {

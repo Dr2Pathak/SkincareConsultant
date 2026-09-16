@@ -190,10 +190,12 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-8rem)] px-4 py-8 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-8rem)] px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-2xl">
         <div className="mb-8">
-          <div className="mb-2 flex items-center justify-between text-sm text-muted-foreground">
+          <p className="font-display text-2xl font-semibold tracking-tight text-foreground">Your skin profile</p>
+          <div className="barrier-rule mt-3" aria-hidden="true" />
+          <div className="mb-2 mt-5 flex items-center justify-between text-sm text-muted-foreground">
             <span>
               Step {step} of {totalSteps}
             </span>
@@ -209,7 +211,7 @@ export default function OnboardingPage() {
 
         {step === 1 && (
           <section aria-labelledby="skin-type-heading">
-            <h1 id="skin-type-heading" className="text-2xl font-bold text-foreground">
+            <h1 id="skin-type-heading" className="font-display text-2xl font-semibold tracking-tight text-foreground">
               What&apos;s your skin type?
             </h1>
             <p className="mt-2 text-muted-foreground">

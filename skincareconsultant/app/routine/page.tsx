@@ -283,12 +283,13 @@ export default function RoutinePage() {
   }
 
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-8">
+    <div className="px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Your Routine</h1>
-            <p className="mt-2 text-muted-foreground">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Your routine</h1>
+            <div className="barrier-rule mt-3" aria-hidden="true" />
+            <p className="mt-4 max-w-2xl text-muted-foreground leading-relaxed">
               Build and manage your AM and PM skincare routines. Track what products you use and when.
             </p>
           </div>

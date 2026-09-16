@@ -59,23 +59,24 @@ export default function IngredientsPage() {
   }, [fullGraph, mode, routineIngredientIds])
 
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-8">
+    <div className="px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Knowledge Graph</h1>
-            <p className="mt-2 text-muted-foreground max-w-2xl">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Ingredient map</h1>
+            <div className="barrier-rule mt-3" aria-hidden="true" />
+            <p className="mt-4 text-muted-foreground max-w-2xl leading-relaxed">
               Explore how ingredients, ingredient families, and skin concerns relate to each other.
               Choose the full graph or your routine to see ingredients in context.
             </p>
           </div>
-          <div className="flex rounded-lg border border-border bg-muted/30 p-1">
+          <div className="inline-flex border border-border bg-muted/30 p-0.5" role="group" aria-label="Graph view">
             <button
               type="button"
               onClick={() => setMode("routine")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`px-3.5 py-1.5 text-sm font-medium transition-colors ${
                 mode === "routine"
-                  ? "bg-background text-foreground shadow"
+                  ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -84,9 +85,9 @@ export default function IngredientsPage() {
             <button
               type="button"
               onClick={() => setMode("full")}
-              className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              className={`px-3.5 py-1.5 text-sm font-medium transition-colors ${
                 mode === "full"
-                  ? "bg-background text-foreground shadow"
+                  ? "bg-background text-foreground shadow-sm"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >

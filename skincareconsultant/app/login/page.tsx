@@ -45,11 +45,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="mx-auto max-w-sm px-4 py-12">
-      <h1 className="text-2xl font-bold text-foreground">
+    <div className="page-shell py-12 sm:py-16">
+      <div className="mx-auto max-w-md surface-panel p-6 sm:p-8">
+      <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
         {isSignUp ? "Create account" : "Sign in"}
       </h1>
-      <p className="mt-2 text-sm text-muted-foreground">
+      <div className="barrier-rule mt-3" aria-hidden="true" />
+      <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
         {isSignUp
           ? "Create an account to save your routines and access them on any device."
           : "Sign in to save and load your skincare routine."}
@@ -117,6 +119,7 @@ export default function LoginPage() {
           ← Back to Routine
         </Link>
       </p>
+      </div>
     </div>
   )
 }

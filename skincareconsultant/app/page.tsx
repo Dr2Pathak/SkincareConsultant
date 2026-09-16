@@ -1,177 +1,119 @@
 import Link from "next/link"
-import {
-  CheckCircle2,
-  Sparkles,
-  MessageCircle,
-  Network,
-  ArrowRight,
-  Shield,
-  Zap,
-  Target,
-} from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-const features = [
+const journeys = [
   {
-    icon: Target,
-    title: "Build Your Routine",
-    description:
-      "Organize your AM and PM skincare steps, track products, and get insights on your routine health.",
+    title: "Build your routine",
+    description: "Lay out AM and PM steps, keep products in order, and see how they sit together.",
     href: "/routine",
-    cta: "Start Building",
+    cta: "Open routine",
   },
   {
-    icon: CheckCircle2,
-    title: "Check Product Compatibility",
-    description:
-      "Before you buy, check if a product works with your skin type, concerns, and existing routine.",
+    title: "Check before you buy",
+    description: "Compare a product to your profile and routine so conflicts show up early.",
     href: "/product-check",
-    cta: "Check a Product",
+    cta: "Check a product",
   },
   {
-    icon: MessageCircle,
-    title: "Chat with SkinSafe",
-    description:
-      "Ask questions about ingredients, get routine advice, and learn what works for your skin.",
+    title: "Ask a clear question",
+    description: "Get ingredient and routine guidance grounded in your current setup.",
     href: "/chat",
-    cta: "Start Chatting",
+    cta: "Open chat",
   },
   {
-    icon: Network,
-    title: "Explore Ingredient Map",
-    description:
-      "Discover how ingredients relate to each other, which ones conflict, and which help your concerns.",
+    title: "See ingredient links",
+    description: "Browse how ingredients conflict or support each other on the map.",
     href: "/ingredients",
-    cta: "Explore Map",
-  },
-]
-
-const benefits = [
-  {
-    icon: Shield,
-    title: "Avoid Irritation",
-    description: "Identify conflicts between actives before they cause problems.",
-  },
-  {
-    icon: Zap,
-    title: "Maximize Results",
-    description: "Ensure products complement each other for optimal benefits.",
-  },
-  {
-    icon: Sparkles,
-    title: "Personalized Guidance",
-    description: "Recommendations based on your unique skin profile.",
+    cta: "View map",
   },
 ]
 
 export default function HomePage() {
   return (
     <div className="flex flex-col">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-background to-muted/50 px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
-        <div className="mx-auto max-w-4xl text-center">
-          <h1 className="text-balance text-4xl font-bold tracking-tight text-foreground sm:text-5xl lg:text-6xl">
+      <section className="relative min-h-[78vh] overflow-hidden px-4 pb-16 pt-16 sm:px-6 sm:pb-24 sm:pt-24 lg:px-8">
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 bg-[url('/hero-barrier.svg')] bg-cover bg-[center_top] bg-no-repeat"
+          aria-hidden="true"
+        />
+        <div className="page-shell flex min-h-[58vh] flex-col justify-center">
+          <h1 className="font-display text-5xl font-semibold tracking-tight text-foreground motion-fade-up sm:text-6xl lg:text-7xl">
             SkinSafe
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-pretty text-lg text-muted-foreground sm:text-xl leading-relaxed">
-            Check product compatibility, build smarter routines, and understand your ingredients.
-            Routine-centric guidance that puts your skin first.
+          <div className="barrier-rule mt-5 motion-fade-up motion-delay-1" aria-hidden="true" />
+          <p className="mt-6 max-w-xl text-lg leading-relaxed text-muted-foreground motion-fade-up motion-delay-2 sm:text-xl">
+            Know what belongs in your routine before it lands on your face.
           </p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <div className="mt-10 flex flex-col gap-3 motion-fade-up motion-delay-3 sm:flex-row sm:items-center">
             <Button size="lg" asChild>
               <Link href="/onboarding">
-                Set Up Your Profile
+                Set up your profile
                 <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
             <Button size="lg" variant="outline" asChild>
-              <Link href="/product-check">Check a Product</Link>
+              <Link href="/product-check">Check a product</Link>
             </Button>
           </div>
-          <p className="mt-6 text-sm text-muted-foreground">
-            Trusted by skincare enthusiasts. Built with evidence-based ingredient data.
+          <p className="mt-6 max-w-md text-sm text-muted-foreground motion-fade-up motion-delay-4">
+            Educational only — not a diagnosis. Patch test new products.
           </p>
         </div>
       </section>
 
-      {/* Benefits Section */}
-      <section className="border-y border-border bg-card px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="grid gap-8 md:grid-cols-3">
-            {benefits.map((benefit) => (
-              <div key={benefit.title} className="flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                  <benefit.icon className="h-5 w-5 text-primary" aria-hidden="true" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">{benefit.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{benefit.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="px-4 py-16 sm:px-6 sm:py-24 lg:px-8">
-        <div className="mx-auto max-w-7xl">
-          <div className="text-center">
-            <h2 className="text-balance text-3xl font-bold tracking-tight text-foreground sm:text-4xl">
-              Everything You Need for Smarter Skincare
-            </h2>
-            <p className="mx-auto mt-4 max-w-2xl text-pretty text-muted-foreground">
-              From building your routine to checking compatibility, we help you make informed decisions.
-            </p>
-          </div>
-
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:gap-8">
-            {features.map((feature) => (
-              <article
-                key={feature.title}
-                className="group relative rounded-2xl border border-border bg-card p-6 transition-shadow hover:shadow-lg"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 transition-colors group-hover:bg-primary/20">
-                  <feature.icon className="h-6 w-6 text-primary" aria-hidden="true" />
-                </div>
-                <h3 className="mt-4 text-xl font-semibold text-foreground">{feature.title}</h3>
-                <p className="mt-2 text-muted-foreground leading-relaxed">{feature.description}</p>
-                <div className="mt-4">
-                  <Link
-                    href={feature.href}
-                    className="inline-flex items-center text-sm font-medium text-primary hover:underline"
-                  >
-                    {feature.cta}
-                    <ArrowRight className="ml-1 h-4 w-4" aria-hidden="true" />
-                  </Link>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Section */}
-      <section className="bg-primary px-4 py-16 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-balance text-2xl font-bold text-primary-foreground sm:text-3xl">
-            Ready to Optimize Your Routine?
+      <section className="border-y border-border/70 bg-card/40 px-4 py-14 sm:px-6 lg:px-8">
+        <div className="page-shell">
+          <h2 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+            Start where you are
           </h2>
-          <p className="mx-auto mt-4 max-w-xl text-pretty text-primary-foreground/80">
-            Set up your profile in minutes and start getting personalized skincare guidance today.
+          <p className="mt-3 max-w-2xl text-muted-foreground">
+            Four paths. Same goal: fewer surprises when you introduce a new product.
           </p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button size="lg" variant="secondary" asChild>
-              <Link href="/onboarding">Get Started Free</Link>
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="border-primary-foreground/30 bg-transparent text-primary-foreground hover:bg-primary-foreground/10"
-              asChild
-            >
-              <Link href="/ingredients">Explore Ingredients</Link>
-            </Button>
+
+          <ul className="mt-10 divide-y divide-border/80 border-y border-border/80">
+            {journeys.map((item) => (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className="group flex flex-col gap-2 py-6 transition-colors hover:bg-accent/40 sm:flex-row sm:items-baseline sm:justify-between sm:gap-8 sm:px-2"
+                >
+                  <div className="min-w-0">
+                    <h3 className="font-display text-xl font-semibold text-foreground group-hover:text-primary">
+                      {item.title}
+                    </h3>
+                    <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted-foreground">
+                      {item.description}
+                    </p>
+                  </div>
+                  <span className="inline-flex shrink-0 items-center text-sm font-medium text-primary">
+                    {item.cta}
+                    <ArrowRight className="ml-1 h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+
+      <section className="px-4 py-16 sm:px-6 lg:px-8">
+        <div className="page-shell">
+          <div className="max-w-2xl border-l-2 border-primary/40 pl-6 sm:pl-8">
+            <h2 className="font-display text-3xl font-semibold tracking-tight text-foreground">
+              Ready when your shelf is.
+            </h2>
+            <p className="mt-4 leading-relaxed text-muted-foreground">
+              Save a profile, build an AM/PM routine, then check products against what you already use.
+            </p>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+              <Button size="lg" asChild>
+                <Link href="/onboarding">Get started</Link>
+              </Button>
+              <Button size="lg" variant="outline" asChild>
+                <Link href="/ingredients">Explore ingredients</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>

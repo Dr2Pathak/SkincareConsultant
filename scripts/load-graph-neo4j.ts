@@ -34,7 +34,16 @@ function main() {
     .filter((line) => line.length > 0 && line.endsWith(";"))
     .map((line) => line.replace(/;\s*$/, ""))
 
-  const driver = neo4j.driver(uri, neo4j.auth.basic(user, password))
+  // neo4j+s:// embeds encryption in the URI; trust overrides require a plain scheme.
+  let connectUri = uri
+  const driverConfig: { encrypted?: boolean; trust?: "TRUST_ALL_CERTIFICATES" } = {}
+  if (process.env.NEO4J_TRUST_ALL === "1") {
+    connectUri = uri.replace(/^neo4j\+s:/i, "neo4j:").replace(/^bolt\+s:/i, "bolt:")
+    driverConfig.encrypted = true
+    driverConfig.trust = "TRUST_ALL_CERTIFICATES"
+  }
+
+  const driver = neo4j.driver(connectUri, neo4j.auth.basic(user, password), driverConfig)
 
   async function run() {
     const session = driver.session()

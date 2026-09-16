@@ -226,14 +226,15 @@ export default function RoutineCalendarPage() {
   const weekdayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-8">
+    <div className="px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-6xl space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-semibold text-foreground sm:text-3xl">
+            <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground">
               Routine calendar
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <div className="barrier-rule mt-3" aria-hidden="true" />
+            <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
               Choose which routine runs on which day. Your choices are saved automatically.
             </p>
           </div>
