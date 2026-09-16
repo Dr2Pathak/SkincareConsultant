@@ -14,7 +14,16 @@ export function getNeo4jDriver(): Driver {
   if (!uri || !user || !password) {
     throw new Error("Missing NEO4J_URI, NEO4J_USER, or NEO4J_PASSWORD")
   }
-  _driver = neo4j.driver(uri, neo4j.auth.basic(user, password))
+
+  let connectUri = uri
+  const driverConfig: { encrypted?: boolean; trust?: "TRUST_ALL_CERTIFICATES" } = {}
+  if (process.env.NEO4J_TRUST_ALL === "1") {
+    connectUri = uri.replace(/^neo4j\+s:/i, "neo4j:").replace(/^bolt\+s:/i, "bolt:")
+    driverConfig.encrypted = true
+    driverConfig.trust = "TRUST_ALL_CERTIFICATES"
+  }
+
+  _driver = neo4j.driver(connectUri, neo4j.auth.basic(user, password), driverConfig)
   return _driver
 }
 

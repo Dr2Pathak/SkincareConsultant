@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
+import { Fraunces, Figtree, IBM_Plex_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import { AuthProvider } from '@/components/auth/auth-provider'
 import { Header } from '@/components/layout/header'
@@ -7,8 +7,19 @@ import { Footer } from '@/components/layout/footer'
 import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist" });
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+const display = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-display",
+})
+const body = Figtree({
+  subsets: ["latin"],
+  variable: "--font-body",
+})
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+})
 
 export const metadata: Metadata = {
   title: {
@@ -16,7 +27,6 @@ export const metadata: Metadata = {
     template: '%s | SkinSafe',
   },
   description: 'Check product compatibility with your skincare routine, get personalized guidance, and explore ingredient relationships.',
-  generator: 'v0.app',
   keywords: ['skincare', 'routine', 'product check', 'ingredients', 'compatibility'],
   icons: {
     icon: [
@@ -39,8 +49,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f5f5f4' },
-    { media: '(prefers-color-scheme: dark)', color: '#1a1a2e' },
+    { media: '(prefers-color-scheme: light)', color: '#f3f6f5' },
+    { media: '(prefers-color-scheme: dark)', color: '#121c1e' },
   ],
   width: 'device-width',
   initialScale: 1,
@@ -53,7 +63,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased min-h-screen flex flex-col`}>
+      <body className={`${display.variable} ${body.variable} ${mono.variable} font-sans antialiased min-h-screen flex flex-col`}>
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
 import type { LucideIcon } from "lucide-react"
-import { Menu, X, Droplets, LogIn, LogOut, Calendar } from "lucide-react"
+import { Menu, X, LogIn, LogOut, Calendar } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/components/auth/auth-provider"
@@ -24,32 +24,45 @@ function isNavActive(pathname: string, href: string): boolean {
   return false
 }
 
+function BrandMark({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex h-8 w-8 items-center justify-center rounded-full border border-primary/30 bg-primary/10",
+        className,
+      )}
+      aria-hidden="true"
+    >
+      <span className="h-3 w-3 rounded-full bg-primary shadow-[0_0_0_3px_color-mix(in_oklab,var(--primary)_25%,transparent)]" />
+    </span>
+  )
+}
+
 export function Header() {
   const pathname = usePathname()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const { user, loading, signOut } = useAuth()
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Droplets className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
-          </div>
-          <span className="text-lg font-semibold text-foreground">SkinSafe</span>
+    <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/80 backdrop-blur-md">
+      <div className="page-shell flex h-[4.25rem] items-center justify-between">
+        <Link href="/" className="group flex items-center gap-2.5">
+          <BrandMark />
+          <span className="font-display text-xl font-semibold tracking-tight text-foreground">
+            SkinSafe
+          </span>
         </Link>
 
-        {/* Desktop Navigation */}
         <nav className="hidden md:flex md:items-center md:gap-1" aria-label="Main navigation">
           {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "inline-flex items-center gap-1.5 border-b-2 px-2.5 py-2 text-sm font-medium transition-colors",
                 isNavActive(pathname, item.href)
-                  ? "bg-accent text-accent-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                  ? "border-primary text-foreground"
+                  : "border-transparent text-muted-foreground hover:border-border hover:text-foreground",
               )}
             >
               {item.icon ? <item.icon className="h-4 w-4 shrink-0 opacity-80" aria-hidden /> : null}
@@ -85,7 +98,6 @@ export function Header() {
           </Button>
         </div>
 
-        {/* Mobile Menu Button */}
         <Button
           variant="ghost"
           size="icon"
@@ -103,7 +115,6 @@ export function Header() {
         </Button>
       </div>
 
-      {/* Mobile Navigation */}
       {mobileMenuOpen && (
         <nav
           id="mobile-menu"
@@ -116,10 +127,10 @@ export function Header() {
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "flex items-center gap-2 rounded-md px-3 py-2 text-base font-medium transition-colors",
+                  "flex items-center gap-2 border-l-2 px-3 py-2.5 text-base font-medium transition-colors",
                   isNavActive(pathname, item.href)
-                    ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                    ? "border-primary bg-primary/5 text-foreground"
+                    : "border-transparent text-muted-foreground hover:bg-accent hover:text-foreground",
                 )}
                 onClick={() => setMobileMenuOpen(false)}
               >

@@ -79,19 +79,20 @@ export default function ProductCheckPage() {
   }
 
   return (
-    <div className="px-4 py-8 sm:px-6 lg:px-8">
+    <div className="px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-4xl">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-foreground">Product Compatibility Check</h1>
-          <p className="mt-2 text-muted-foreground max-w-2xl mx-auto">
+        <div className="mb-10 text-left sm:text-center">
+          <h1 className="font-display text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">Product Check</h1>
+          <div className="barrier-rule mt-3 sm:mx-auto" aria-hidden="true" />
+          <p className="mt-4 text-muted-foreground max-w-2xl sm:mx-auto leading-relaxed">
             Search for a product to see how well it fits with your skin profile and existing routine.
           </p>
         </div>
 
         {!compatibilityResult && (
           <>
-            <div className="mb-6" ref={containerRef}>
-              <div className="relative max-w-xl">
+            <div className="mb-6 surface-panel p-4 sm:p-5" ref={containerRef}>
+              <div className="relative max-w-xl sm:mx-auto">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground pointer-events-none" aria-hidden="true" />
                 <Input
                   type="search"
@@ -149,10 +150,9 @@ export default function ProductCheckPage() {
             </div>
 
             {!query && !selectedProduct && (
-              <div className="text-center py-12 rounded-xl border border-dashed border-border">
-                <Search className="mx-auto h-12 w-12 text-muted-foreground/50" aria-hidden="true" />
-                <h3 className="mt-4 text-lg font-medium text-foreground">Search for a Product</h3>
-                <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
+              <div className="text-center py-14 surface-panel border-dashed">
+                <h3 className="font-display text-xl font-semibold text-foreground">Search for a product</h3>
+                <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto leading-relaxed">
                   Type a product name, brand, or ingredient (e.g. niacinamide, CeraVe) to see matching products, then select one to check compatibility.
                 </p>
               </div>

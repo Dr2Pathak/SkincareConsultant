@@ -9,7 +9,7 @@ vi.mock("@/components/graph/graph-visualization", () => ({
 describe("IngredientsPage", () => {
   it("renders knowledge graph or ingredient map heading", () => {
     render(<IngredientsPage />);
-    const heading = screen.getByRole("heading", { name: /knowledge graph/i });
+    const heading = screen.getByRole("heading", { name: /ingredient map/i });
     expect(heading).toBeInTheDocument();
   });
 

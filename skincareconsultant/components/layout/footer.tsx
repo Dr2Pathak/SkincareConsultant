@@ -1,37 +1,37 @@
 import Link from "next/link"
-import { Droplets } from "lucide-react"
 
 export function Footer() {
   return (
-    <footer className="border-t border-border bg-card">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="flex flex-col items-center justify-between gap-6 md:flex-row">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-              <Droplets className="h-5 w-5 text-primary-foreground" aria-hidden="true" />
-            </div>
-            <span className="text-lg font-semibold text-foreground">SkinSafe</span>
+    <footer className="mt-auto border-t border-border/70 bg-card/60">
+      <div className="page-shell py-10">
+        <div className="flex flex-col gap-8 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-sm">
+            <p className="font-display text-2xl font-semibold tracking-tight text-foreground">SkinSafe</p>
+            <div className="barrier-rule mt-3" aria-hidden="true" />
+            <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+              Guidance for calmer routines — check compatibility before you layer, not after your skin reacts.
+            </p>
           </div>
 
-          <nav className="flex flex-wrap items-center justify-center gap-4 text-sm" aria-label="Footer navigation">
-            <Link href="/routine" className="text-muted-foreground hover:text-foreground transition-colors">
+          <nav className="flex flex-wrap gap-x-5 gap-y-2 text-sm" aria-label="Footer navigation">
+            <Link href="/routine" className="text-muted-foreground transition-colors hover:text-foreground">
               Routine
             </Link>
-            <Link href="/product-check" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/product-check" className="text-muted-foreground transition-colors hover:text-foreground">
               Product Check
             </Link>
-            <Link href="/chat" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/chat" className="text-muted-foreground transition-colors hover:text-foreground">
               Chat
             </Link>
-            <Link href="/ingredients" className="text-muted-foreground hover:text-foreground transition-colors">
+            <Link href="/ingredients" className="text-muted-foreground transition-colors hover:text-foreground">
               Ingredients
             </Link>
           </nav>
-
-          <p className="text-xs text-muted-foreground text-center md:text-right max-w-xs">
-            For educational purposes only. Not a substitute for professional dermatological advice.
-          </p>
         </div>
+
+        <p className="mt-8 border-t border-border/60 pt-5 text-xs text-muted-foreground">
+          Educational guidance only — not medical advice. Patch test new products and talk with a clinician when needed.
+        </p>
       </div>
     </footer>
   )
